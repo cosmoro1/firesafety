@@ -79,7 +79,7 @@ Route::post('/incidents/import', [IncidentController::class, 'import'])->name('i
 
 Route::get('/reset-database', function () {
     // This command wipes your database clean and runs your seeders
-    Artisan::call('migrate:fresh --seed');
+    Artisan::call('migrate:fresh --seed --force');
 
     return 'Database has been reset and users created! You can login now.';
 });
