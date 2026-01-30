@@ -8,7 +8,7 @@ use App\Http\Controllers\HighRiskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DocumentController;
-use Illuminate\Support\Facades\Artisan;
+
 
 // --- GUEST ROUTES (Login/Logout) ---
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -77,9 +77,3 @@ Route::post('/site-audit/import', [SiteAuditController::class, 'import'])->name(
 
 Route::post('/incidents/import', [IncidentController::class, 'import'])->name('incidents.import');
 
-Route::get('/reset-database', function () {
-    // This command wipes your database clean and runs your seeders
-    Artisan::call('migrate:fresh --seed --force');
-
-    return 'Database has been reset and users created! You can login now.';
-});
