@@ -38,13 +38,14 @@
             </a>
             @endif
 
-    @if(auth()->user()->role === 'admin')
+            @if(auth()->user()->role === 'admin')
             <a href="{{ route('high_risk.index') }}" 
                class="flex items-center px-4 py-3 rounded-lg transition {{ request()->routeIs('high_risk.index') ? 'text-red-500 bg-red-50 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <i class="fa-solid fa-map-location-dot w-6 {{ request()->routeIs('high_risk.index') ? '' : 'text-gray-400' }}"></i>
                 High Risk Barangays
             </a>
             @endif
+
             @if(in_array(auth()->user()->role, ['admin', 'clerk']))
             <a href="/documents" class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('documents') ? 'text-red-500 bg-red-50 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <i class="fa-regular fa-folder-open w-6 {{ request()->is('documents') ? '' : 'text-gray-400' }}"></i>
@@ -52,11 +53,25 @@
             </a>
             @endif
 
+            @if(in_array(auth()->user()->role, ['admin', 'clerk']))
             <a href="/training" class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('training') ? 'text-red-500 bg-red-50 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <i class="fa-solid fa-graduation-cap w-6 {{ request()->is('training') ? '' : 'text-gray-400' }}"></i>
                 Training Management
             </a>
+            @endif
 
+            {{-- ADMIN CONTROLS SECTION --}}
+            @if(auth()->user()->role === 'admin')
+                <div class="mt-4 mb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Admin Controls
+                </div>
+
+                <a href="{{ route('users.index') }}" 
+                   class="flex items-center px-4 py-3 rounded-lg transition {{ request()->routeIs('users.*') ? 'text-red-500 bg-red-50 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
+                    <i class="fa-solid fa-users-gear w-6 {{ request()->routeIs('users.*') ? '' : 'text-gray-400' }}"></i>
+                    User Management
+                </a>
+            @endif
             
         </nav>
     </div>
@@ -70,12 +85,12 @@
                 <h4 class="text-sm font-semibold text-gray-900">{{ auth()->user()->name }}</h4>
                 <p class="text-xs text-gray-500 capitalize">{{ auth()->user()->role }}</p>
             </div>
-           <form method="POST" action="{{ route('logout') }}" class="inline">
-    @csrf
-    <button type="submit" class="text-gray-400 hover:text-red-500 transition" title="Logout">
-        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-    </button>
-</form>
+            <form method="POST" action="{{ route('logout') }}" class="inline">
+                @csrf
+                <button type="submit" class="text-gray-400 hover:text-red-500 transition" title="Logout">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
+            </form>
         </div>
     </div>
 </aside>

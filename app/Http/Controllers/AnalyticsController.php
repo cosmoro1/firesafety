@@ -6,52 +6,57 @@ use Illuminate\Http\Request;
 use App\Models\Incident;
 use App\Models\SiteAudit;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class AnalyticsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $currentYear = date('Y');
-
-        // --- 1. KPI CARDS DATA ---
-        $totalIncidents = Incident::whereYear('created_at', $currentYear)->count();
+        // --- 1. SETUP YEARS & FILTER ---
         
-        // Growth Calculation
-        $lastYearIncidents = Incident::whereYear('created_at', $currentYear - 1)->count();
-        $incidentGrowth = $lastYearIncidents > 0 
-            ? round((($totalIncidents - $lastYearIncidents) / $lastYearIncidents) * 100) 
-            : 0;
-        
-        // Compliance Rate
-        $totalAudits = SiteAudit::count();
-        $passedAudits = SiteAudit::where('compliance_score', '>=', 80)->count();
-        $complianceRate = $totalAudits > 0 ? round(($passedAudits / $totalAudits) * 100, 1) : 0;
+        // Get all unique years from incidents to populate the dropdown
+        $availableYears = Incident::selectRaw('YEAR(incident_date) as year')
+            ->distinct()
+            ->orderBy('year', 'desc')
+            ->pluck('year')
+            ->toArray();
 
-        // High Risk Count
-        $highRiskCount = SiteAudit::where('risk_level', 'High')->count();
-
-
-        // --- 2. CHARTS DATA ---
-
-        // A. FIRE INCIDENTS TREND (Monthly for Current Year)
-        $incidentsByMonth = Incident::select(
-            DB::raw('COUNT(id) as count'), 
-            DB::raw('MONTH(created_at) as month')
-        )
-        ->whereYear('created_at', $currentYear)
-        ->groupBy('month')
-        ->pluck('count', 'month')
-        ->toArray();
-
-        // Ensure all 12 months exist (fill with 0 if empty)
-        $monthlyTrend = [];
-        for ($i = 1; $i <= 12; $i++) {
-            $monthlyTrend[] = $incidentsByMonth[$i] ?? 0;
+        // Fallback if no data exists
+        if (empty($availableYears)) {
+            $availableYears = [date('Y')];
         }
 
-        // B. INCIDENTS BY TYPE
+        // Determine Selected Year (from URL or default to latest) and Previous Year
+        $selectedYear = $request->input('year', $availableYears[0]);
+        $previousYear = $selectedYear - 1;
+
+
+        // --- 2. FIRE INCIDENTS TREND (Comparison Logic) ---
+
+        $getMonthlyData = function ($year) {
+            $counts = Incident::selectRaw('MONTH(incident_date) as month, COUNT(*) as total')
+                ->whereYear('incident_date', $year)
+                ->groupBy('month')
+                ->pluck('total', 'month')
+                ->toArray();
+
+            // Fill 0 for months with no data
+            $data = [];
+            for ($i = 1; $i <= 12; $i++) {
+                $data[] = $counts[$i] ?? 0;
+            }
+            return $data;
+        };
+
+        // Get Data for both lines
+        $currentYearTrend = $getMonthlyData($selectedYear);
+        $previousYearTrend = $getMonthlyData($previousYear);
+
+
+        // --- 3. OTHER INCIDENT CHARTS (Filtered by Selected Year) ---
+
+        // A. Incidents by Type
         $incidentTypes = Incident::select('type', DB::raw('count(*) as total'))
+            ->whereYear('incident_date', $selectedYear)
             ->groupBy('type')
             ->pluck('total', 'type')
             ->toArray();
@@ -59,33 +64,44 @@ class AnalyticsController extends Controller
         $typeLabels = array_keys($incidentTypes);
         $typeData = array_values($incidentTypes);
 
-        // C. AUDIT RISK OVERVIEW
+        // B. Incident Density by Barangay (Top 5)
+        $topBarangays = Incident::select('location', DB::raw('count(*) as total'))
+            ->whereYear('incident_date', $selectedYear)
+            ->groupBy('location')
+            ->orderByDesc('total')
+            ->take(5)
+            ->get();
+
+
+        // --- 4. AUDIT DATA ---
+
+        // A. Audit Risk Overview
         $auditRisks = SiteAudit::select('risk_level', DB::raw('count(*) as total'))
             ->groupBy('risk_level')
             ->pluck('total', 'risk_level')
             ->toArray();
 
-        // Ensure specific order for chart colors: Low, Medium, High
         $riskData = [
             $auditRisks['Low'] ?? 0,
             $auditRisks['Medium'] ?? 0,
             $auditRisks['High'] ?? 0,
         ];
 
-
-        // --- 3. TABLES & LISTS ---
-
-        // A. MOST COMMON HAZARDS (Text Analysis)
-        $allHazards = SiteAudit::pluck('hazards')->toArray();
+        // B. Most Common Hazards (Text Analysis)
+        // FIXED: Changed 'violations' back to 'hazards' to match your database
+        $allHazards = SiteAudit::pluck('hazards')->toArray(); 
         $hazardCounts = [];
 
         foreach ($allHazards as $hazardString) {
             if (!$hazardString) continue;
+            
             // Split by comma or newline
             $items = preg_split('/[,\n]+/', $hazardString);
+            
             foreach ($items as $item) {
                 $clean = trim(ucfirst(strtolower($item))); 
-                if (strlen($clean) > 2) { 
+                // Filter out short words or 'Nan'
+                if (strlen($clean) > 2 && $clean !== 'Nan') { 
                     $hazardCounts[$clean] = ($hazardCounts[$clean] ?? 0) + 1;
                 }
             }
@@ -93,17 +109,19 @@ class AnalyticsController extends Controller
         arsort($hazardCounts);
         $topHazards = array_slice($hazardCounts, 0, 5);
 
-        // B. INCIDENT DENSITY BY BARANGAY (Top 5)
-        $topBarangays = Incident::select('location', DB::raw('count(*) as total'))
-            ->groupBy('location')
-            ->orderByDesc('total')
-            ->take(5)
-            ->get();
 
+        // --- 5. RETURN VIEW ---
         return view('analytics', compact(
-            'totalIncidents', 'incidentGrowth', 'complianceRate', 'highRiskCount',
-            'monthlyTrend', 'typeLabels', 'typeData', 'riskData', 
-            'topHazards', 'topBarangays'
+            'availableYears',
+            'selectedYear',
+            'previousYear',
+            'currentYearTrend',
+            'previousYearTrend',
+            'typeLabels',
+            'typeData',
+            'topBarangays',
+            'riskData',
+            'topHazards'
         ));
     }
 }

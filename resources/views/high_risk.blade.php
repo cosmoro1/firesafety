@@ -68,8 +68,7 @@
                             '{{ $row['incidents'] }}', 
                             '{{ $row['high_risk_count'] }}', 
                             '{{ $row['total_audits'] }}',
-                            '{{ addslashes($row['analysis']) }}',
-                            '{{ $row['wood_percent'] }}'
+                            '{{ addslashes($row['analysis']) }}'
                         )" class="hover:bg-blue-50 transition cursor-pointer group">
                             
                             <td class="px-6 py-4 font-bold text-gray-900">{{ $row['name'] }}</td>
@@ -160,10 +159,6 @@
                             <p id="modalAnalysis" class="text-sm text-blue-800 font-medium leading-relaxed relative z-10">
                                 Loading analysis...
                             </p>
-
-                            <div id="woodStat" class="mt-3 text-xs text-blue-600 font-mono relative z-10 hidden">
-                                <i class="fa-solid fa-house-chimney-crack mr-1"></i> <span id="woodPercentVal">0</span>% Wooden Structures
-                            </div>
                         </div>
 
                         <div class="mt-4 text-xs text-gray-500 italic text-center">
@@ -177,21 +172,12 @@
     </div>
 
     <script>
-        function openAnalyticsModal(name, status, incidents, failed, total, analysis, woodPercent) {
+        function openAnalyticsModal(name, status, incidents, failed, total, analysis) {
             document.getElementById('modalBarangay').innerText = name;
             document.getElementById('modalIncidents').innerText = incidents;
             document.getElementById('modalFailed').innerText = failed;
             document.getElementById('modalTotal').innerText = total;
             document.getElementById('modalAnalysis').innerText = analysis;
-
-            // Show Wood Stats if relevant (e.g. > 10%)
-            const woodBox = document.getElementById('woodStat');
-            if(woodPercent > 10) {
-                woodBox.classList.remove('hidden');
-                document.getElementById('woodPercentVal').innerText = woodPercent;
-            } else {
-                woodBox.classList.add('hidden');
-            }
 
             // Set Badge Color
             const badge = document.getElementById('modalBadge');

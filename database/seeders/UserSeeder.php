@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
         // 1. Station Commander / Admin
         User::create([
             'name' => 'Station Commander',
-            'email' => 'admin@bfp.gov.ph',
+            'email' => 'admin_bfp@gmail.com',
             'password' => Hash::make('password'),
             'role' => 'admin',
         ]);
@@ -24,7 +24,7 @@ class UserSeeder extends Seeder
         // 2. Fire Officer / Encoder
         User::create([
             'name' => 'Fire Officer Juan',
-            'email' => 'officer@bfp.gov.ph',
+            'email' => 'officer_bfp@gmail.com',
             'password' => Hash::make('password'),
             'role' => 'officer',
         ]);
@@ -32,7 +32,7 @@ class UserSeeder extends Seeder
         // 3. Records Officer / Clerk
         User::create([
             'name' => 'Records Clerk Maria',
-            'email' => 'records@bfp.gov.ph',
+            'email' => 'records_bfp@gmail.com',
             'password' => Hash::make('password'),
             'role' => 'clerk',
         ]);

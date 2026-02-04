@@ -67,7 +67,7 @@
                 <input id="email" name="email" type="email" autocomplete="email" required 
                         value="{{ old('email') }}"
                         class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 sm:text-sm" 
-                        placeholder="officer@bfp.gov.ph">
+                        placeholder="officer_bfp@gmail.com">
             </div>
         </div>
 

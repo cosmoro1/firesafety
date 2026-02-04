@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Artisan; // Required for the reset command
+use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\SiteAuditController;
@@ -9,6 +9,7 @@ use App\Http\Controllers\HighRiskController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,7 +43,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/site-audit', [SiteAuditController::class, 'store'])->name('site_audit.store');
     Route::post('/site-audit/import', [SiteAuditController::class, 'import'])->name('site_audit.import');
 
-    // 4. ANALYTICS (Controller handles the Admin check)
+    // 4. ANALYTICS
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
 
     // 5. DOCUMENTS
@@ -54,21 +55,27 @@ Route::middleware('auth')->group(function () {
     // 6. HIGH RISK BARANGAYS
     Route::get('/high-risk', [HighRiskController::class, 'index'])->name('high_risk.index');
 
-    // 7. TRAINING
+    // 7. TRAINING (Restricted to Admin & Clerk)
     Route::get('/training', function () {
+        if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
+            abort(403, 'Unauthorized action.');
+        }
         return view('training');
     });
+
+    // 8. USER MANAGEMENT
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
 
 });
 
 /*
 |--------------------------------------------------------------------------
-| SYSTEM UTILITIES (Database Reset)
+| SYSTEM UTILITIES
 |--------------------------------------------------------------------------
 */
-Route::get('/reset-database', function () {
-    // The --force flag is CRITICAL for Railway production
+Route::get('/reset-database', function () { // <--- FIXED: Changed RRoute to Route
     Artisan::call('migrate:fresh --seed --force');
-    
     return 'Database reset successfully! Users created. You can now login.';
 });

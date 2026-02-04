@@ -1,78 +1,54 @@
 <x-layout>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+ <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Analytics & Reports</h2>
             <p class="text-gray-500 text-sm">Data-driven insights on fire safety operations and compliance</p>
         </div>
         <div class="flex items-center gap-2">
-             <button class="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg font-medium shadow-sm flex items-center hover:bg-gray-50 transition">
-                <i class="fa-solid fa-filter mr-2"></i> Filter
-            </button>
-            <button class="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg font-medium shadow-sm flex items-center hover:bg-gray-50 transition">
-                <i class="fa-regular fa-calendar mr-2"></i> Year {{ date('Y') }}
-            </button>
-            <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition flex items-center">
-                <i class="fa-solid fa-download mr-2"></i> Export Report
-            </button>
+             
+            
+            {{-- FUNCTIONAL YEAR FILTER --}}
+            <form method="GET" action="{{ route('analytics') }}" class="relative">
+                {{-- Calendar Icon (Positioned Absolute) --}}
+                <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"></i>
+                
+                {{-- The Dropdown (Styled to look like a button) --}}
+                <select name="year" onchange="this.form.submit()" 
+                        class="appearance-none bg-white border border-gray-200 text-gray-600 pl-10 pr-8 py-2 rounded-lg font-medium shadow-sm hover:bg-gray-50 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                    @foreach($availableYears as $year)
+                        <option value="{{ $year }}" {{ $year == $selectedYear ? 'selected' : '' }}>
+                            {{ $year }}
+                        </option>
+                    @endforeach
+                </select>
+                
+                {{-- Optional: Chevron Icon on the right to indicate it's a list --}}
+                <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none"></i>
+            </form>
+
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-gray-500 text-sm font-medium">Total Incidents (YTD)</h3>
-                <span class="p-2 bg-red-50 text-red-600 rounded-lg"><i class="fa-solid fa-chart-line"></i></span>
-            </div>
-            <div class="flex items-end justify-between">
-                <div>
-                    <h2 class="text-3xl font-bold text-gray-900">{{ $totalIncidents }}</h2>
-                    <p class="text-red-600 text-sm flex items-center mt-1">
-                        <i class="fa-solid fa-arrow-trend-up mr-1"></i> {{ $incidentGrowth }}% vs last year
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-gray-500 text-sm font-medium">Avg. Compliance Rate</h3>
-                <span class="p-2 bg-green-50 text-green-600 rounded-lg"><i class="fa-solid fa-clipboard-check"></i></span>
-            </div>
-             <div class="flex items-end justify-between">
-                <div>
-                    <h2 class="text-3xl font-bold text-gray-900">{{ $complianceRate }}%</h2>
-                    <p class="text-green-600 text-sm flex items-center mt-1">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Current Rate
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-gray-500 text-sm font-medium">High-Risk Locations</h3>
-                <span class="p-2 bg-orange-50 text-orange-600 rounded-lg"><i class="fa-solid fa-triangle-exclamation"></i></span>
-            </div>
-             <div class="flex items-end justify-between">
-                <div>
-                    <h2 class="text-3xl font-bold text-gray-900">{{ $highRiskCount }}</h2>
-                    <p class="text-gray-500 text-sm flex items-center mt-1">Identified this year</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    {{-- FIRE TRENDS CHART WITH YEAR FILTER --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h3 class="font-bold text-gray-800 text-lg">Fire Incidents Trend</h3>
-                <p class="text-sm text-gray-500">Monthly breakdown of reported incidents for {{ date('Y') }}</p>
+                <p class="text-sm text-gray-500">Comparison: {{ $selectedYear }} vs {{ $previousYear }}</p>
             </div>
-            <select class="text-sm border-gray-200 rounded-lg text-gray-600">
-                <option>{{ date('Y') }}</option>
-            </select>
+            
+            {{-- YEAR FILTER FORM --}}
+            <form method="GET" action="{{ route('analytics') }}">
+                <select name="year" onchange="this.form.submit()" class="text-sm border-gray-200 rounded-lg text-gray-600 focus:border-red-500 focus:ring-red-500 cursor-pointer">
+                    @foreach($availableYears as $year)
+                        <option value="{{ $year }}" {{ $year == $selectedYear ? 'selected' : '' }}>
+                            {{ $year }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
         </div>
         <div class="relative h-80 w-full">
             <canvas id="fireTrendChart"></canvas>
@@ -83,7 +59,7 @@
 
         <div class="space-y-8">
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <h3 class="font-bold text-gray-800 mb-6">Incidents by Type</h3>
+                <h3 class="font-bold text-gray-800 mb-6">Incidents by Type ({{ $selectedYear }})</h3>
                 <div class="relative h-64 w-full">
                     <canvas id="incidentTypeChart"></canvas>
                 </div>
@@ -111,7 +87,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="2" class="px-6 py-4 text-center text-gray-500">No data available</td>
+                            <td colspan="2" class="px-6 py-4 text-center text-gray-500">No data available for {{ $selectedYear }}</td>
                         </tr>
                         @endforelse
                     </tbody>
@@ -128,7 +104,7 @@
             </div>
 
              <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <h3 class="font-bold text-gray-800 mb-4">Most Common Hazards Found</h3>
+                <h3 class="font-bold text-gray-800 mb-4">Most Common Hazards Found in Site Audit</h3>
                 <div class="space-y-3">
                     @php $i = 1; @endphp
                     @forelse($topHazards as $hazard => $count)
@@ -154,29 +130,44 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             
-            // 1. Fire Incidents Trend (Line Chart)
+            // 1. Fire Incidents Trend (COMPARISON CHART)
             const ctxTrend = document.getElementById('fireTrendChart').getContext('2d');
             new Chart(ctxTrend, {
                 type: 'line',
                 data: {
                     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                    datasets: [{
-                        label: 'Incidents {{ date("Y") }}',
-                        data: @json($monthlyTrend), // <--- Real Data
-                        borderColor: '#DC2626',
-                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: '#FFFFFF',
-                        pointBorderColor: '#DC2626',
-                        pointRadius: 4
-                    }]
+                    datasets: [
+                        {
+                            label: '{{ $selectedYear }}', // Current Selection
+                            data: @json($currentYearTrend), // <--- FIXED VARIABLE
+                            borderColor: '#DC2626', // Red
+                            backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: '#DC2626',
+                            pointRadius: 4
+                        },
+                        {
+                            label: '{{ $previousYear }}', // Comparison Year
+                            data: @json($previousYearTrend), // <--- FIXED VARIABLE
+                            borderColor: '#9CA3AF', // Gray
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [5, 5], // Dashed Line
+                            tension: 0.4,
+                            pointRadius: 0, // Hide points for cleaner look
+                            pointHoverRadius: 4
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { 
+                        legend: { display: true, position: 'top', align: 'end' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
                     scales: {
                         y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } },
                         x: { grid: { display: false } }
@@ -184,15 +175,15 @@
                 }
             });
 
-            // 2. Incidents by Type (Bar Chart)
+            // 2. Incidents by Type
             const ctx1 = document.getElementById('incidentTypeChart').getContext('2d');
             new Chart(ctx1, {
                 type: 'bar',
                 data: {
-                    labels: @json($typeLabels), // <--- Real Labels
+                    labels: @json($typeLabels),
                     datasets: [{
                         label: '# of Incidents',
-                        data: @json($typeData), // <--- Real Data
+                        data: @json($typeData),
                         backgroundColor: ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#6B7280'],
                         borderRadius: 6,
                     }]
@@ -208,14 +199,14 @@
                 }
             });
 
-            // 3. Audit Risk Overview (Doughnut Chart)
+            // 3. Audit Risk Overview
             const ctx2 = document.getElementById('auditRiskChart').getContext('2d');
             new Chart(ctx2, {
                 type: 'doughnut',
                 data: {
                     labels: ['Low Risk', 'Medium Risk', 'High Risk'],
                     datasets: [{
-                        data: @json($riskData), // <--- Real Data
+                        data: @json($riskData),
                         backgroundColor: ['#22c55e', '#f97316', '#ef4444'],
                         hoverOffset: 4
                     }]
