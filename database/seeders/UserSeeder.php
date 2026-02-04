@@ -14,27 +14,33 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         // 1. Station Commander / Admin
-        User::create([
-            'name' => 'Station Commander',
-            'email' => 'admin_bfp@gmail.com',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-        ]);
+        User::updateOrCreate(
+            ['role' => 'admin'],
+            [
+                'name' => 'Station Commander',
+                'email' => 'admin_bfp@gmail.com',
+                'password' => Hash::make('password'),
+            ]
+        );
 
         // 2. Fire Officer / Encoder
-        User::create([
-            'name' => 'Fire Officer Juan',
-            'email' => 'officer_bfp@gmail.com',
-            'password' => Hash::make('password'),
-            'role' => 'officer',
-        ]);
+        User::updateOrCreate(
+            ['role' => 'officer'],
+            [
+                'name' => 'Fire Officer Juan',
+                'email' => 'officer_bfp@gmail.com',
+                'password' => Hash::make('password'),
+            ]
+        );
 
         // 3. Records Officer / Clerk
-        User::create([
-            'name' => 'Records Clerk Maria',
-            'email' => 'records_bfp@gmail.com',
-            'password' => Hash::make('password'),
-            'role' => 'clerk',
-        ]);
+        User::updateOrCreate(
+            ['role' => 'clerk'],
+            [
+                'name' => 'Records Clerk Maria',
+                'email' => 'records_bfp@gmail.com',
+                'password' => Hash::make('password'),
+            ]
+        );
     }
 }
