@@ -394,12 +394,60 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Location (Barangay) <span class="text-red-500">*</span></label>
                                 <select name="location" id="inputLocation" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" required>
                                     <option value="">Select Barangay</option>
-                                    {{-- ... (Your Barangay Options - Truncated for brevity but keep them!) ... --}}
+                                    <option value="Bagong Kalsada">Bagong Kalsada</option>
+                                    <option value="Bañadero">Bañadero</option>
+                                    <option value="Banlic">Banlic</option>
+                                    <option value="Barandal">Barandal</option>
                                     <option value="Barangay 1 (Poblacion)">Barangay 1 (Poblacion)</option>
+                                    <option value="Barangay 2 (Poblacion)">Barangay 2 (Poblacion)</option>
+                                    <option value="Barangay 3 (Poblacion)">Barangay 3 (Poblacion)</option>
+                                    <option value="Barangay 4 (Poblacion)">Barangay 4 (Poblacion)</option>
+                                    <option value="Barangay 5 (Poblacion)">Barangay 5 (Poblacion)</option>
+                                    <option value="Barangay 6 (Poblacion)">Barangay 6 (Poblacion)</option>
+                                    <option value="Barangay 7 (Poblacion)">Barangay 7 (Poblacion)</option>
+                                    <option value="Batino">Batino</option>
+                                    <option value="Bubuyan">Bubuyan</option>
+                                    <option value="Bucal">Bucal</option>
+                                    <option value="Bunggo">Bunggo</option>
+                                    <option value="Burol">Burol</option>
+                                    <option value="Camaligan">Camaligan</option>
                                     <option value="Canlubang">Canlubang</option>
+                                    <option value="Halang">Halang</option>
+                                    <option value="Hornalan">Hornalan</option>
+                                    <option value="Kay-Anlog">Kay-Anlog</option>
+                                    <option value="La Mesa">La Mesa</option>
+                                    <option value="Laguerta">Laguerta</option>
+                                    <option value="Lawa">Lawa</option>
+                                    <option value="Lecheria">Lecheria</option>
+                                    <option value="Lingga">Lingga</option>
+                                    <option value="Looc">Looc</option>
+                                    <option value="Mabato">Mabato</option>
+                                    <option value="Majada Labas">Majada Labas</option>
+                                    <option value="Makiling">Makiling</option>
+                                    <option value="Mapagong">Mapagong</option>
+                                    <option value="Masili">Masili</option>
+                                    <option value="Maunong">Maunong</option>
                                     <option value="Mayapa">Mayapa</option>
+                                    <option value="Paciano Rizal">Paciano Rizal</option>
+                                    <option value="Palingon">Palingon</option>
                                     <option value="Palo-Alto">Palo-Alto</option>
+                                    <option value="Pansol">Pansol</option>
+                                    <option value="Parian">Parian</option>
+                                    <option value="Prinza">Prinza</option>
+                                    <option value="Punta">Punta</option>
+                                    <option value="Puting Lupa">Puting Lupa</option>
+                                    <option value="Real">Real</option>
+                                    <option value="Saimsim">Saimsim</option>
+                                    <option value="Sampiruhan">Sampiruhan</option>
+                                    <option value="San Cristobal">San Cristobal</option>
+                                    <option value="San Jose">San Jose</option>
+                                    <option value="San Juan">San Juan</option>
+                                    <option value="Sirang Lupa">Sirang Lupa</option>
+                                    <option value="Sucol">Sucol</option>
+                                    <option value="Tulo">Tulo</option>
                                     <option value="Turbina">Turbina</option>
+                                    <option value="Ulango">Ulango</option>
+                                    <option value="Uwisan">Uwisan</option>
                                 </select>
                             </div>
                             <div class="mb-5">
