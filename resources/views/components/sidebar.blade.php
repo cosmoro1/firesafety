@@ -24,7 +24,8 @@
             </a>
             @endif
 
-            @if(in_array(auth()->user()->role, ['admin', 'officer']))
+            {{-- UPDATED: Added 'records_clerk' here --}}
+            @if(in_array(auth()->user()->role, ['admin', 'officer', 'clerk']))
             <a href="/incidents" class="flex items-center px-4 py-3 rounded-lg transition {{ request()->is('incidents') ? 'text-red-500 bg-red-50 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <i class="fa-solid fa-fire w-6 {{ request()->is('incidents') ? '' : 'text-gray-400' }}"></i>
                 Incident Reporting

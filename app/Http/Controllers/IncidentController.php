@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage; 
 use App\Models\IncidentImage;
 use App\Models\IncidentHistory;
+use Barryvdh\DomPDF\Facade\Pdf; 
 
 class IncidentController extends Controller
 {
@@ -16,9 +17,27 @@ class IncidentController extends Controller
     public function index(Request $request)
     {
         $query = Incident::with('images')->latest();
+        $userRole = Auth::user()->role;
 
-        if ($request->has('status') && $request->input('status') !== 'all') {
+        // --- STRICT RULE: CLERK ---
+        // Changed 'records_clerk' to 'clerk'
+        if ($userRole === 'clerk') {
+            $query->where('status', 'Case Closed');
+        } 
+        // --- NORMAL RULE: ADMIN/OFFICER ---
+        elseif ($request->has('status') && $request->input('status') !== 'all') {
             $query->where('status', $request->input('status'));
+        }
+
+        // --- SEARCH FILTER ---
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('title', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%")
+                  ->orWhere('reported_by', 'like', "%{$search}%");
+            });
         }
 
         $incidents = $query->paginate(10);
@@ -41,8 +60,6 @@ class IncidentController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
-            
-            // A. Create the Incident
             $incident = Incident::create([
                 'type' => $request->type,
                 'stage' => $request->stage ?? 'SIR',
@@ -55,23 +72,18 @@ class IncidentController extends Controller
                 'alarm_level' => 'Low',
             ]);
 
-            // B. Handle File Uploads
             $imagePaths = []; 
-            
             if ($request->hasFile('evidence')) {
                 foreach ($request->file('evidence') as $file) {
                     $path = $file->store('evidence', 'public');
-                    
                     IncidentImage::create([
                         'incident_id' => $incident->id,
                         'image_path' => $path
                     ]);
-                    
                     $imagePaths[] = $path; 
                 }
             }
 
-            // C. Create INITIAL History Snapshot
             IncidentHistory::create([
                 'incident_id' => $incident->id,
                 'stage' => $incident->stage ?? 'SIR',
@@ -94,7 +106,6 @@ class IncidentController extends Controller
         $incident = Incident::findOrFail($id);
         $action = $request->input('action');
 
-        // A. Return to Officer
         if ($action === 'return') {
             $incident->update([
                 'status' => 'Returned',
@@ -103,11 +114,8 @@ class IncidentController extends Controller
             return redirect()->back()->with('error', 'Report returned to officer for revision.');
         }
 
-        // B. Approve (Advance Stage)
         if ($action === 'approve') {
-            
             DB::transaction(function () use ($incident) {
-                // Snapshot History
                 IncidentHistory::create([
                     'incident_id' => $incident->id,
                     'stage' => $incident->stage,
@@ -120,7 +128,6 @@ class IncidentController extends Controller
                     'images' => $incident->images->pluck('image_path')->toArray(), 
                 ]);
 
-                // Determine Next Stage
                 $currentStage = $incident->stage;
                 $nextStage = $currentStage;
                 $status = 'Pending';
@@ -160,7 +167,6 @@ class IncidentController extends Controller
         $incident = Incident::findOrFail($id);
 
         DB::transaction(function () use ($request, $incident) {
-            
             $updateData = [
                 'title' => $request->title,
                 'incident_date' => $request->date . ' ' . $request->time,
@@ -169,7 +175,6 @@ class IncidentController extends Controller
                 'description' => $request->description,
             ];
 
-            // Reset status if it was "Returned"
             if ($incident->status === 'Returned') {
                 $updateData['status'] = 'Pending';
                 $updateData['admin_remarks'] = null;
@@ -191,7 +196,7 @@ class IncidentController extends Controller
         return redirect()->back()->with('success', 'Report updated and resubmitted for review!');
     }
 
-    // 5. IMPORT CSV (NEW METHOD)
+    // 5. IMPORT CSV
     public function import(Request $request)
     {
         $request->validate([
@@ -199,20 +204,14 @@ class IncidentController extends Controller
         ]);
 
         $file = $request->file('file');
-        
-        // Read CSV
         $fileData = array_map('str_getcsv', file($file->getRealPath()));
         
-        // Remove Header
         if (count($fileData) > 0) {
             array_shift($fileData); 
         }
 
         DB::transaction(function () use ($fileData) {
             foreach ($fileData as $row) {
-                // Expected Columns: 
-                // 0:Type, 1:Title, 2:Date(Y-m-d), 3:Time(H:i), 4:Location, 5:Description, 6:Status(Optional)
-                
                 if (count($row) < 6) continue;
 
                 $type = $row[0];
@@ -223,10 +222,9 @@ class IncidentController extends Controller
                 $description = $row[5];
                 $status = isset($row[6]) && !empty($row[6]) ? $row[6] : 'Case Closed';
                 
-                // Create Incident
                 $incident = Incident::create([
                     'type' => $type,
-                    'stage' => 'FIR', // Assume historical data is finalized
+                    'stage' => 'FIR',
                     'title' => $title,
                     'location' => $location,
                     'incident_date' => $date . ' ' . $time,
@@ -236,7 +234,6 @@ class IncidentController extends Controller
                     'alarm_level' => 'Low',
                 ]);
 
-                // Create History Snapshot (Required for Timeline)
                 IncidentHistory::create([
                     'incident_id' => $incident->id,
                     'stage' => 'FIR',
@@ -252,5 +249,25 @@ class IncidentController extends Controller
         });
 
         return redirect()->back()->with('success', 'Historical Incidents Imported Successfully!');
+    }
+
+    // 6. DOWNLOAD PDF
+    public function download($id)
+    {
+        $incident = Incident::findOrFail($id);
+        $userRole = Auth::user()->role;
+
+        // Restriction 1: Only Admin and Clerk
+        if (!in_array($userRole, ['admin', 'clerk'])) { // Changed 'records_clerk' to 'clerk'
+            abort(403, 'Unauthorized. Only Admin and Records Department can retrieve official reports.');
+        }
+
+        // Restriction 2: Status must be Case Closed
+        if ($incident->status !== 'Case Closed') {
+            abort(403, 'Report is not yet finalized.');
+        }
+
+        $pdf = Pdf::loadView('incidents.pdf', compact('incident'));
+        return $pdf->download('Official_Report_INC-' . $incident->id . '.pdf');
     }
 }

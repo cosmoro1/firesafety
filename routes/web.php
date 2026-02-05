@@ -10,6 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\TrainingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/incidents/{id}', [IncidentController::class, 'update'])->name('incidents.update');
     Route::put('/incidents/{id}/status', [IncidentController::class, 'updateStatus'])->name('incidents.status');
     Route::post('/incidents/import', [IncidentController::class, 'import'])->name('incidents.import');
+    Route::get('/incidents/{incident}/download', [IncidentController::class, 'download'])->name('incidents.download');
 
     // 3. SITE AUDIT
     Route::get('/site-audit', [SiteAuditController::class, 'index'])->name('site_audit.index');
@@ -56,12 +58,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/high-risk', [HighRiskController::class, 'index'])->name('high_risk.index');
 
     // 7. TRAINING (Restricted to Admin & Clerk)
-    Route::get('/training', function () {
-        if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
-            abort(403, 'Unauthorized action.');
-        }
-        return view('training');
-    });
+    Route::get('/training', [TrainingController::class, 'index'])->name('training.index');
+    Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
+    Route::post('/training/{training}/email', [TrainingController::class, 'sendEmail'])->name('training.email');
+    Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
+    Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
 
     // 8. USER MANAGEMENT
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
