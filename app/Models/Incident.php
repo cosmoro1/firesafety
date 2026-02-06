@@ -35,5 +35,9 @@ class Incident extends Model
     public function images()
 {
     return $this->hasMany(IncidentImage::class);
+    
 }
+  
+
+
 }

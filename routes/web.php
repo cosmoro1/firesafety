@@ -11,6 +11,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\TrainingController;
+use App\Http\Controllers\SettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -39,6 +40,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/incidents/{id}/status', [IncidentController::class, 'updateStatus'])->name('incidents.status');
     Route::post('/incidents/import', [IncidentController::class, 'import'])->name('incidents.import');
     Route::get('/incidents/{incident}/download', [IncidentController::class, 'download'])->name('incidents.download');
+    
+    // NEW: View Full Incident Report
+    Route::get('/incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
 
     // 3. SITE AUDIT
     Route::get('/site-audit', [SiteAuditController::class, 'index'])->name('site_audit.index');
@@ -57,17 +61,23 @@ Route::middleware('auth')->group(function () {
     // 6. HIGH RISK BARANGAYS
     Route::get('/high-risk', [HighRiskController::class, 'index'])->name('high_risk.index');
 
-    // 7. TRAINING (Restricted to Admin & Clerk)
+    // 7. TRAINING
     Route::get('/training', [TrainingController::class, 'index'])->name('training.index');
     Route::post('/training', [TrainingController::class, 'store'])->name('training.store');
     Route::post('/training/{training}/email', [TrainingController::class, 'sendEmail'])->name('training.email');
     Route::put('/training/{training}', [TrainingController::class, 'update'])->name('training.update');
     Route::delete('/training/{training}', [TrainingController::class, 'destroy'])->name('training.destroy');
 
-    // 8. USER MANAGEMENT
+    // 8. USER MANAGEMENT (Admin controls)
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::put('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+
+    // 9. SETTINGS (Self-Service Profile & Password)
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.update-password');
+    Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.update-profile');
 
 });
 
@@ -76,7 +86,7 @@ Route::middleware('auth')->group(function () {
 | SYSTEM UTILITIES
 |--------------------------------------------------------------------------
 */
-Route::get('/reset-database', function () { // <--- FIXED: Changed RRoute to Route
+Route::get('/reset-database', function () {
     Artisan::call('migrate:fresh --seed --force');
     return 'Database reset successfully! Users created. You can now login.';
 });

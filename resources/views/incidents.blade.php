@@ -115,10 +115,12 @@
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <div class="flex items-center justify-center gap-2">
-                                    <button onclick="openTimelineModal('{{ $incident->id }}', '{{ $incident->stage }}', '{{ $incident->status }}', '{{ addslashes($incident->admin_remarks) }}', {{ json_encode($incident->history) }})" 
-                                        class="text-blue-600 hover:text-blue-800 bg-blue-50 p-2 rounded-lg transition" title="View Timeline">
-                                        <i class="fa-solid fa-list-check"></i>
-                                    </button>
+                                    @if(auth()->user()->role !== 'clerk')
+    <button onclick="openTimelineModal('{{ $incident->id }}', '{{ $incident->stage }}', '{{ $incident->status }}', '{{ addslashes($incident->admin_remarks) }}', {{ json_encode($incident->history) }})" 
+    class="text-blue-600 hover:text-blue-800 bg-blue-50 p-2 rounded-lg transition" title="View Timeline">
+    <i class="fa-solid fa-list-check"></i>
+</button>
+@endif
 
                                     <button onclick="openViewModal(
                                         '{{ $incident->id }}', 
@@ -168,7 +170,7 @@
         </div>
     </div>
 
-    {{-- MODALS --}}
+    {{-- MODAL: TIMELINE --}}
     <dialog id="timelineModal" class="modal rounded-2xl shadow-2xl p-0 w-full max-w-2xl backdrop:bg-slate-900/50">
         <div class="bg-white">
             <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
@@ -227,6 +229,7 @@
         </div>
     </dialog>
 
+    {{-- MODAL: VIEW DETAILS --}}
     <div id="viewReportModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeViewModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -253,12 +256,23 @@
                         <div><p class="text-sm text-gray-500">Incident Title / Location</p><p id="viewTitle" class="font-medium text-gray-900"></p></div>
                         <div><p class="text-sm text-gray-500 mb-1">Description</p><div id="viewDescription" class="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 border border-gray-100 whitespace-pre-wrap"></div></div>
                     </div>
+                    
+                    {{-- UPDATED FOOTER with "View Full Report" --}}
                     <div class="bg-gray-50 px-6 py-3 flex justify-between items-center">
-                        @if(in_array(auth()->user()->role, ['admin', 'clerk']))
-                            <a id="viewDownloadBtn" href="#" target="_blank" class="hidden inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500"><i class="fa-solid fa-file-pdf mr-2"></i> Download Official Report</a>
-                        @else
-                            <div></div>
-                        @endif
+                        <div class="flex gap-2">
+                            {{-- NEW: View Full Report Button --}}
+                            <a id="viewFullReportBtn" href="#" class="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition">
+                                <i class="fa-solid fa-file-invoice mr-2"></i> View Full Report
+                            </a>
+
+                            {{-- EXISTING: Download Button --}}
+                            @if(in_array(auth()->user()->role, ['admin', 'clerk']))
+                                <a id="viewDownloadBtn" href="#" target="_blank" class="hidden inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 transition">
+                                    <i class="fa-solid fa-file-pdf mr-2"></i> Download Official Report
+                                </a>
+                            @endif
+                        </div>
+
                         <button onclick="closeViewModal()" class="inline-flex justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:w-auto">Close</button>
                     </div>
                 </div>
@@ -266,7 +280,7 @@
         </div>
     </div>
 
-    {{-- IMPORT MODAL --}}
+    {{-- MODAL: IMPORT --}}
     @if(auth()->user()->role !== 'clerk')
     <div id="importModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeImportModal()"></div>
@@ -292,7 +306,7 @@
     </div>
     @endif
 
-    {{-- NEW/EDIT FORM MODAL --}}
+    {{-- MODAL: FORM (NEW/EDIT) --}}
     <div id="formModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeFormModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -521,6 +535,12 @@
         document.getElementById('viewDate').innerText = date;
         document.getElementById('viewOfficer').innerText = officer;
         document.getElementById('viewDescription').innerText = description;
+        
+        // --- NEW: Update View Full Report Link ---
+        const fullReportBtn = document.getElementById('viewFullReportBtn');
+        if (fullReportBtn) {
+            fullReportBtn.href = "/incidents/" + id;
+        }
         
         if(status === 'Returned' && remarks) {
             document.getElementById('viewReturnAlert').classList.remove('hidden');
