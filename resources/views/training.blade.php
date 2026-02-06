@@ -107,6 +107,7 @@
                                     '{{ addslashes($training->company_name) }}', 
                                     '{{ $training->industry_type }}', 
                                     '{{ addslashes($training->representative_name) }}', 
+                                    '{{ $training->representative_email }}', {{-- ADDED EMAIL HERE --}}
                                     '{{ $training->status }}', 
                                     '{{ \Carbon\Carbon::parse($training->date_conducted)->format('M d, Y') }}',
                                     {{ $training->attendees_count }}
@@ -226,6 +227,8 @@
                                 </div>
                                 <div class="space-y-2">
                                     <p class="text-sm"><i class="fa-solid fa-user-tie text-blue-500 mr-2"></i> <span id="modalRep">Rep Name</span></p>
+                                    {{-- ADDED EMAIL DISPLAY --}}
+                                    <p class="text-sm"><i class="fa-solid fa-envelope text-gray-500 mr-2"></i> <span id="modalEmail" class="text-gray-700">email@example.com</span></p>
                                     <p class="text-sm"><i class="fa-solid fa-calendar text-red-500 mr-2"></i> <span id="modalDate">Date</span></p>
                                     <p class="text-sm"><i class="fa-solid fa-users text-orange-500 mr-2"></i> <span id="modalAttendees">0</span> Attendees</p>
                                 </div>
@@ -234,6 +237,9 @@
                             {{-- Email Form --}}
                             <form id="emailForm" method="POST" action="" enctype="multipart/form-data">
                                 @csrf
+                                {{-- ADDED HIDDEN EMAIL INPUT --}}
+                                <input type="hidden" name="representative_email" id="hiddenEmail">
+                                
                                 <input type="file" name="certificate_files[]" id="certificateFiles" class="hidden" multiple accept=".pdf,.jpg,.png,.jpeg" onchange="handleFileSelect(this)">
                                 
                                 <button type="button" onclick="document.getElementById('certificateFiles').click()" class="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-bold text-gray-500 hover:border-red-500 hover:text-red-500 transition mb-3">
@@ -359,16 +365,18 @@
 
     <script>
         // --- VIEW / EMAIL MODAL ---
-        function openCompanyModal(id, company, industry, rep, status, date, attendees) {
+        function openCompanyModal(id, company, industry, rep, email, status, date, attendees) {
             document.getElementById('modalCompany').innerText = company;
             document.getElementById('modalIndustry').innerText = industry;
             document.getElementById('modalRep').innerText = rep;
+            document.getElementById('modalEmail').innerText = email; // Show Email
             document.getElementById('modalStatus').innerText = status;
             document.getElementById('modalDate').innerText = date;
             document.getElementById('modalAttendees').innerText = attendees;
 
             // Reset Email Form
             document.getElementById('emailForm').action = "/training/" + id + "/email";
+            document.getElementById('hiddenEmail').value = email; // Populate hidden field
             document.getElementById('certificateFiles').value = ""; 
             document.getElementById('previewContainer').innerHTML = ""; 
             document.getElementById('previewContainer').classList.add('hidden'); 

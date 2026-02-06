@@ -9,16 +9,14 @@ class Training extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = 'trainings'; // Ensure this matches your DB table name
+
     protected $fillable = [
         'company_name',
         'company_id',
         'industry_type',
         'representative_name',
+        'representative_email', // <--- MAKE SURE THIS IS ADDED
         'representative_position',
         'topic',
         'date_conducted',

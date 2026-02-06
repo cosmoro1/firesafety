@@ -29,40 +29,46 @@ class HighRiskController extends Controller
         // --- 1. DYNAMIC BASIS CALCULATION ---
         $totalAuditsInDB = SiteAudit::count();
         if ($totalAuditsInDB == 0) $totalAuditsInDB = 1;
-        $avgBarangaySize = $totalAuditsInDB / count($barangays); 
-
-        // Pre-fetch data
-        $allIncidentCounts = [];
-        $allAudits = [];
+        $avgBarangaySize = $totalAuditsInDB / count($barangays);
 
         foreach ($barangays as $barangay) {
-            $allIncidentCounts[$barangay] = Incident::where('location', 'LIKE', "%$barangay%")->count();
-            $allAudits[$barangay] = SiteAudit::where('barangay', $barangay)->get();
-        }
-
-        foreach ($barangays as $barangay) {
-            $incidentCount = $allIncidentCounts[$barangay];
-            $audits = $allAudits[$barangay];
+            $incidentCount = Incident::where('location', 'LIKE', "%$barangay%")->count();
+            $audits = SiteAudit::where('barangay', $barangay)->get();
             $totalAudits = $audits->count();
+            
+            // Your Logic: High Risk based on DB Column (Works for both Manual and CSV)
             $highRiskAudits = $audits->where('risk_level', 'High')->count();
 
             if ($incidentCount == 0 && $totalAudits == 0) continue;
 
-            // --- 2. SCORES ---
-            $auditRiskRatio = $highRiskAudits / $avgBarangaySize; 
-            $auditScore = min($auditRiskRatio * 50, 50); 
+            // --- 2. SCORES (Your Formula) ---
+            $auditRiskRatio = $avgBarangaySize > 0 ? ($highRiskAudits / $avgBarangaySize) : 0;
+            $auditScore = min($auditRiskRatio * 50, 50);
 
             $woodenStructures = 0;
+            $violationStats = []; 
+
             foreach ($audits as $audit) {
-                $struct = $audit->structure_data;
-                if (isset($struct['EXTERIOR WALL']['material']) && $struct['EXTERIOR WALL']['material'] === 'wood') {
+                $struct = is_string($audit->structure_data) ? json_decode($audit->structure_data, true) : $audit->structure_data;
+                
+                // Structure Logic: Checks EXTERIOR WALL (Consistent for Manual & CSV)
+                if (isset($struct['EXTERIOR WALL']['material']) && strtolower($struct['EXTERIOR WALL']['material']) === 'wood') {
                     $woodenStructures++;
                 }
+
+                // Violation Logic: Checks BOTH sources
+                $violations = $this->getViolations($audit);
+                foreach($violations as $v) {
+                    if(!isset($violationStats[$v])) $violationStats[$v] = 0;
+                    $violationStats[$v]++;
+                }
             }
+
             $woodPercent = $totalAudits > 0 ? ($woodenStructures / $totalAudits) : 0;
             $structureScore = $woodPercent * 30;
 
             $incidentScore = min($incidentCount * 2, 20);
+            
             $totalScore = $auditScore + $structureScore + $incidentScore;
 
             if ($totalScore >= 60) {
@@ -75,30 +81,54 @@ class HighRiskController extends Controller
                 $lowRiskCount++;
             }
 
-            // --- 3. GENERATE DESCRIPTIVE ANALYSIS (UPDATED) ---
+            // --- 3. DESCRIPTIVE ANALYTICS ---
             $analysisParts = [];
-
-            // Context 1: Incidents
-            if ($incidentCount > 10) {
-                $analysisParts[] = "This barangay has a concerning history of fire activity, with $incidentCount confirmed incidents recorded.";
-            } elseif ($incidentCount > 0) {
-                $analysisParts[] = "Historical data shows sporadic fire incidents ($incidentCount) in the area.";
-            } else {
-                $analysisParts[] = "No recent fire incidents have been reported here.";
+            
+            // Determine Top Issues
+            $issueString = "varied safety lapses";
+            if (!empty($violationStats)) {
+                arsort($violationStats);
+                $topIssues = array_keys(array_slice($violationStats, 0, 2));
+                $issueString = "'" . implode("' and '", $topIssues) . "'";
             }
 
-            // Context 2: Audits
-            if ($highRiskAudits > 0) {
-                $analysisParts[] = "Furthermore, inspections reveal that $highRiskAudits establishments failed to meet safety standards. Common violations include faulty electrical wiring and obstruction of designated fire exits.";
-            }
+            if ($status === 'High') {
+                // High Risk Descriptive
+                if ($incidentCount > 10) {
+                    $analysisParts[] = "This area exhibits a high frequency of fire occurrences, with $incidentCount confirmed incidents on record.";
+                } else {
+                    $analysisParts[] = "Risk metrics are elevated due to combined structural and compliance factors.";
+                }
 
-            // Context 3: Structure (Descriptive, not percentage-based)
-            if ($woodPercent > 0.50) {
-                $analysisParts[] = "The risk is critically amplified by the structural composition of the area; a majority of the houses and buildings here are constructed from light materials (wood), which accelerates fire spread.";
-            } elseif ($woodPercent > 0.20) {
-                $analysisParts[] = "The area features a mix of concrete and wooden structures, creating moderate vulnerability to fire propagation.";
+                if ($woodPercent > 0.40) {
+                    $analysisParts[] = "A predominant portion of the structures are composed of light materials (wood), which increases the area's fuel load density.";
+                }
+
+                if ($highRiskAudits > 0) {
+                    $analysisParts[] = "Audit data reveals a significant gap in safety standards, with $highRiskAudits establishments failing inspection. The most prevalent non-compliance issues are $issueString.";
+                }
+                
             } else {
-                $analysisParts[] = "Most structures in the vicinity are built with concrete and fire-resistant materials, providing a natural buffer.";
+                // Low Risk Descriptive
+                $analysisParts[] = "Current data indicates a managed risk profile for this area.";
+
+                if ($incidentCount > 10) {
+                    $analysisParts[] = "Although $incidentCount fire incidents are recorded, the overall risk score remains lower due to stronger structural integrity or higher audit compliance.";
+                } elseif ($incidentCount > 0) {
+                    $analysisParts[] = "Fire activity in this area has been sporadic ($incidentCount incidents).";
+                }
+
+                if ($woodPercent < 0.40) {
+                    $analysisParts[] = "The presence of concrete and mixed-material structures provides a higher resistance to fire spread.";
+                } else {
+                    $analysisParts[] = "Structural density is moderate.";
+                }
+
+                if ($highRiskAudits > 0) {
+                    $analysisParts[] = "While overall compliance is sufficient, specific deviations were noted in $highRiskAudits establishments, primarily involving $issueString.";
+                } else {
+                    $analysisParts[] = "Site audit records show a high rate of adherence to safety protocols.";
+                }
             }
 
             $reason = implode(" ", $analysisParts);
@@ -111,13 +141,13 @@ class HighRiskController extends Controller
                 'status' => $status,
                 'status_color' => $statusColor,
                 'analysis' => $reason,
-                // Passing this is optional if you remove the line from your blade file
-                'wood_percent' => round($woodPercent * 100, 1) 
+                'wood_percent' => round($woodPercent * 100, 1)
             ];
         }
 
+        // Sort: High Risk first, then by Incidents
         usort($data, function($a, $b) {
-            if ($a['status'] === $b['status']) return strcmp($a['name'], $b['name']);
+            if ($a['status'] === $b['status']) return $b['incidents'] <=> $a['incidents'];
             return $a['status'] === 'High' ? -1 : 1;
         });
 
@@ -129,5 +159,79 @@ class HighRiskController extends Controller
         }
 
         return view('high_risk', compact('data', 'highRiskCount', 'lowRiskCount'));
+    }
+
+    /**
+     * UPDATED Helper: Reads BOTH CSV text ('hazards') AND Manual Answers ('checklist_data')
+     */
+    private function getViolations($audit) {
+        $checklist = is_string($audit->checklist_data) ? json_decode($audit->checklist_data, true) : $audit->checklist_data;
+        $violations = [];
+
+        // 1. CSV SOURCE: Read the 'hazards' text column
+        if (!empty($audit->hazards)) {
+            $rawList = explode(',', $audit->hazards);
+            foreach($rawList as $raw) {
+                $trimmed = trim($raw);
+                if(!empty($trimmed)) {
+                    $violations[] = $trimmed; 
+                }
+            }
+        }
+        
+        // 2. MANUAL SOURCE: Read the Q1-Q34 answers
+        // I have aligned these labels with your CSV strings so they count together!
+        if ($checklist) {
+            $labels = [
+                1 => 'General Disorder', 
+                2 => 'Improper storage of flammables', // Matches CSV
+                3 => 'Clutter near Outlets', 
+                4 => 'Poor Arrangement', 
+                5 => 'Trash Accumulation', 
+                6 => 'Disorganized Items', 
+                7 => 'Lack of Safety Knowledge', 
+                8 => 'No Evacuation Plan', 
+                9 => 'Smoking indoors detected', // Matches CSV
+                10 => 'No Circuit Breaker', // Matches CSV
+                11 => 'Exposed wiring or panels', // Matches CSV
+                12 => 'Bad Extension Cords', 
+                13 => 'Outlet overloading', // Matches CSV
+                14 => 'Exposed Cords', 
+                15 => 'Broken Switches', 
+                16 => 'Daisy-Chaining', 
+                17 => 'Wrong Wire Gauge', 
+                18 => 'Wiring Issues', 
+                19 => 'Appliances Plugged In', 
+                20 => 'No Safety Switch', 
+                21 => 'Unattended cooking risks', // Matches CSV
+                22 => 'Improper LPG storage', // Matches CSV
+                23 => 'LPG Left Open', 
+                24 => 'Kitchen Leakages', 
+                25 => 'Flammables near Stove', 
+                26 => 'Poor Maintenance', 
+                27 => 'Poor Ventilation', 
+                28 => 'Improper candle/lighter storage', // Matches CSV
+                29 => 'Blocked exits/windows', // Matches CSV
+                30 => 'Debris Outside', 
+                31 => 'Poor emergency exit access', // Matches CSV
+                32 => 'Far from Road', 
+                33 => 'Blocked Hallways', 
+                34 => 'Poor Lighting'
+            ];
+
+            foreach ($checklist as $id => $ans) {
+                // If the user answered "Yes" to Smoking (Q9), it's a violation.
+                if ($id == 9 && $ans == 'Yes') {
+                    $violations[] = $labels[9];
+                }
+                // For all other questions, if they answered "No", it's a violation.
+                elseif ($id != 9 && $ans == 'No' && isset($labels[$id])) {
+                    $violations[] = $labels[$id];
+                }
+            }
+        }
+        
+        // Return unique list so we don't double count if data is in both places
+        return array_unique($violations);
     }
 }
