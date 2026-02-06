@@ -68,8 +68,11 @@ class TrainingController extends Controller
 
     // --- 3. SEND EMAIL (FIXED LOGIC) ---
     public function sendEmail(Request $request, Training $training)
-    {
-        if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
+{
+    // FIX: Allow this specific process to run for 5 minutes (300 seconds)
+    set_time_limit(300); 
+
+    if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
             abort(403, 'Unauthorized access.');
         }
 
