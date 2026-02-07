@@ -191,6 +191,9 @@ class SiteAuditController extends Controller
      * ========================================================= */
     public function import(Request $request)
     {
+
+        set_time_limit(0);
+
         $request->validate([
             'file' => 'required|mimes:csv,txt'
         ]);

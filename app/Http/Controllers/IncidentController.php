@@ -228,11 +228,22 @@ public function updateStatus(Request $request, $id)
         $rows = array_map('str_getcsv', file($request->file('file')->getRealPath()));
         array_shift($rows); 
 
-        DB::transaction(function () use ($rows) {
+        // Define the only allowed incident types
+        $allowedTypes = ['Structural', 'Non-Structural', 'Vehicular'];
+
+        DB::transaction(function () use ($rows, $allowedTypes) {
             foreach ($rows as $row) {
+                // Ensure row has data
                 if (count($row) < 6) continue;
 
-                $type        = $row[0];
+                $type = trim($row[0]); // Clean up whitespace
+
+                // --- FILTER LOGIC: Skip if type is not allowed ---
+                if (!in_array($type, $allowedTypes)) {
+                    continue; 
+                }
+                // -------------------------------------------------
+
                 $title       = $row[1];
                 $date        = $row[2];
                 $time        = $row[3];
@@ -255,11 +266,9 @@ public function updateStatus(Request $request, $id)
                 ]);
 
                 // 2. BACKFILL HISTORY LOGS
-                // Define the sequence of stages
                 $workflow = ['SIR', 'PIR', 'FIR'];
                 
                 foreach ($workflow as $step) {
-                    // Create history for this step
                     IncidentHistory::create([
                         'incident_id'   => $incident->id,
                         'stage'         => $step,
@@ -272,13 +281,11 @@ public function updateStatus(Request $request, $id)
                         'images'        => [],
                     ]);
 
-                    // Stop once we have reached the stage defined in the CSV
                     if ($step === $stage) {
                         break;
                     }
                 }
 
-                // Special handling for MDFI which is outside the SIR/PIR/FIR loop
                 if ($stage === 'MDFI' && !in_array('MDFI', $workflow)) {
                      IncidentHistory::create([
                         'incident_id'   => $incident->id,
@@ -295,7 +302,7 @@ public function updateStatus(Request $request, $id)
             }
         });
 
-        return back()->with('success', 'Incidents imported with complete historical timelines.');
+        return back()->with('success', 'Import completed! Only Structural, Non-Structural, and Vehicular incidents were saved.');
     }
 
     // 7. DOWNLOAD PDF

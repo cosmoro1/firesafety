@@ -11,6 +11,9 @@ class AnalyticsController extends Controller
 {
     public function index(Request $request)
     {
+        // Define Allowed Types Globally for consistency
+        $allowedTypes = ['Structural', 'Non-Structural', 'Vehicular'];
+
         // --- 1. SETUP YEARS & FILTER ---
         
         // Get all unique years from incidents to populate the dropdown
@@ -20,26 +23,25 @@ class AnalyticsController extends Controller
             ->pluck('year')
             ->toArray();
 
-        // Fallback if no data exists
         if (empty($availableYears)) {
             $availableYears = [date('Y')];
         }
 
-        // Determine Selected Year (from URL or default to latest) and Previous Year
         $selectedYear = $request->input('year', $availableYears[0]);
         $previousYear = $selectedYear - 1;
 
 
         // --- 2. FIRE INCIDENTS TREND (Comparison Logic) ---
 
-        $getMonthlyData = function ($year) {
+        // Passed $allowedTypes to the closure with 'use'
+        $getMonthlyData = function ($year) use ($allowedTypes) {
             $counts = Incident::selectRaw('MONTH(incident_date) as month, COUNT(*) as total')
                 ->whereYear('incident_date', $year)
+                ->whereIn('type', $allowedTypes) // <--- ADDED FILTER
                 ->groupBy('month')
                 ->pluck('total', 'month')
                 ->toArray();
 
-            // Fill 0 for months with no data
             $data = [];
             for ($i = 1; $i <= 12; $i++) {
                 $data[] = $counts[$i] ?? 0;
@@ -47,7 +49,6 @@ class AnalyticsController extends Controller
             return $data;
         };
 
-        // Get Data for both lines
         $currentYearTrend = $getMonthlyData($selectedYear);
         $previousYearTrend = $getMonthlyData($previousYear);
 
@@ -57,6 +58,7 @@ class AnalyticsController extends Controller
         // A. Incidents by Type
         $incidentTypes = Incident::select('type', DB::raw('count(*) as total'))
             ->whereYear('incident_date', $selectedYear)
+            ->whereIn('type', $allowedTypes) // <--- ADDED FILTER
             ->groupBy('type')
             ->pluck('total', 'type')
             ->toArray();
@@ -67,15 +69,15 @@ class AnalyticsController extends Controller
         // B. Incident Density by Barangay (Top 5)
         $topBarangays = Incident::select('location', DB::raw('count(*) as total'))
             ->whereYear('incident_date', $selectedYear)
+            ->whereIn('type', $allowedTypes) // <--- ADDED FILTER
             ->groupBy('location')
             ->orderByDesc('total')
             ->take(5)
             ->get();
 
 
-        // --- 4. AUDIT DATA ---
+        // --- 4. AUDIT DATA (Unchanged as this is for Site Audits, not Incidents) ---
 
-        // A. Audit Risk Overview
         $auditRisks = SiteAudit::select('risk_level', DB::raw('count(*) as total'))
             ->groupBy('risk_level')
             ->pluck('total', 'risk_level')
@@ -87,20 +89,17 @@ class AnalyticsController extends Controller
             $auditRisks['High'] ?? 0,
         ];
 
-        // B. Most Common Hazards (Text Analysis)
-        // FIXED: Changed 'violations' back to 'hazards' to match your database
+        // B. Most Common Hazards
         $allHazards = SiteAudit::pluck('hazards')->toArray(); 
         $hazardCounts = [];
 
         foreach ($allHazards as $hazardString) {
             if (!$hazardString) continue;
             
-            // Split by comma or newline
             $items = preg_split('/[,\n]+/', $hazardString);
             
             foreach ($items as $item) {
                 $clean = trim(ucfirst(strtolower($item))); 
-                // Filter out short words or 'Nan'
                 if (strlen($clean) > 2 && $clean !== 'Nan') { 
                     $hazardCounts[$clean] = ($hazardCounts[$clean] ?? 0) + 1;
                 }
