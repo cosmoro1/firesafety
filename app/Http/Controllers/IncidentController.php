@@ -40,7 +40,7 @@ class IncidentController extends Controller
         return view('incidents', compact('incidents'));
     }
 
-    // 2. SAVE NEW REPORT
+    // 2. SAVE NEW REPORT (FIXED)
     public function store(Request $request)
     {
         $request->validate([
@@ -54,9 +54,12 @@ class IncidentController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
+            // FIX: Use $request->stage instead of hardcoding 'SIR'
+            $stage = $request->stage ?? 'SIR';
+
             $incident = Incident::create([
                 'type' => $request->type,
-                'stage' => 'SIR',
+                'stage' => $stage, // <--- CHANGED THIS
                 'title' => $request->title,
                 'location' => $request->location,
                 'incident_date' => $request->date . ' ' . $request->time,
@@ -83,7 +86,7 @@ class IncidentController extends Controller
 
             IncidentHistory::create([
                 'incident_id' => $incident->id,
-                'stage' => 'SIR',
+                'stage' => $stage, // <--- CHANGED THIS TO MATCH
                 'description' => $incident->description,
                 'title' => $incident->title,
                 'type' => $incident->type,
@@ -94,7 +97,7 @@ class IncidentController extends Controller
             ]);
         });
 
-        return back()->with('success', 'Report created and initial snapshot saved!');
+        return back()->with('success', 'Report created successfully!');
     }
 
     // 3. SHOW SINGLE REPORT
@@ -105,54 +108,65 @@ class IncidentController extends Controller
     }
 
     // 4. WORKFLOW STATUS UPDATES
-    public function updateStatus(Request $request, $id)
-    {
-        $incident = Incident::findOrFail($id);
+    // 4. WORKFLOW STATUS UPDATES
+public function updateStatus(Request $request, $id)
+{
+    $incident = Incident::findOrFail($id);
 
-        if ($request->action === 'return') {
-            $incident->update([
-                'status' => 'Returned',
-                'admin_remarks' => $request->remarks,
+    // Prevent any changes if the case is already closed
+    if ($incident->status === 'Case Closed') {
+        return back()->with('error', 'This case is already finalized and closed.');
+    }
+
+    if ($request->action === 'return') {
+        $incident->update([
+            'status' => 'Returned',
+            'admin_remarks' => $request->remarks,
+        ]);
+        return back()->with('error', 'Report returned to officer for revision.');
+    }
+
+    if ($request->action === 'approve') {
+        DB::transaction(function () use ($incident) {
+            // Save Snapshot of CURRENT state before moving forward
+            IncidentHistory::create([
+                'incident_id' => $incident->id,
+                'stage' => $incident->stage,
+                'description' => $incident->description,
+                'title' => $incident->title,
+                'type' => $incident->type,
+                'location' => $incident->location,
+                'incident_date' => $incident->incident_date,
+                'reported_by' => $incident->reported_by,
+                'images' => $incident->images->pluck('image_path')->toArray(),
             ]);
 
-            return back()->with('error', 'Report returned to officer for revision.');
-        }
+            $nextStage = $incident->stage;
+            $status = 'Pending';
 
-        if ($request->action === 'approve') {
-            DB::transaction(function () use ($incident) {
-                IncidentHistory::create([
-                    'incident_id' => $incident->id,
-                    'stage' => $incident->stage,
-                    'description' => $incident->description,
-                    'title' => $incident->title,
-                    'type' => $incident->type,
-                    'location' => $incident->location,
-                    'incident_date' => $incident->incident_date,
-                    'reported_by' => $incident->reported_by,
-                    'images' => $incident->images->pluck('image_path')->toArray(),
-                ]);
+            // Logic: SIR -> PIR -> FIR -> Closed
+            if ($incident->stage === 'SIR') {
+                $nextStage = 'PIR';
+            } elseif ($incident->stage === 'PIR') {
+                $nextStage = 'FIR';
+            } elseif ($incident->stage === 'FIR') {
+                $status = 'Case Closed'; // Finalize here
+            } elseif ($incident->stage === 'MDFI') {
+                $status = 'Case Closed'; // MDFI also closes immediately
+            }
 
-                $nextStage = $incident->stage;
-                $status = 'Pending';
+            $incident->update([
+                'stage' => $nextStage,
+                'status' => $status,
+                'admin_remarks' => null,
+            ]);
+        });
 
-                if ($incident->stage === 'SIR') {
-                    $nextStage = 'PIR';
-                } elseif ($incident->stage === 'PIR') {
-                    $nextStage = 'FIR';
-                } elseif (in_array($incident->stage, ['FIR', 'MDFI'])) {
-                    $status = 'Case Closed';
-                }
-
-                $incident->update([
-                    'stage' => $nextStage,
-                    'status' => $status,
-                    'admin_remarks' => null,
-                ]);
-            });
-
-            return back()->with('success', 'Stage approved and progressed.');
-        }
+        return back()->with('success', $incident->status === 'Case Closed' 
+            ? 'Report finalized and Case Closed.' 
+            : 'Stage approved. Moved to ' . $incident->stage . '.');
     }
+}
 
     // 5. UPDATE EXISTING REPORT
     public function update(Request $request, $id)
@@ -170,15 +184,27 @@ class IncidentController extends Controller
         $incident = Incident::findOrFail($id);
 
         DB::transaction(function () use ($request, $incident) {
-            $incident->update([
+            $updateData = [
                 'type' => $request->type,
                 'title' => $request->title,
                 'incident_date' => $request->date . ' ' . $request->time,
                 'location' => $request->location,
                 'description' => $request->description,
-                'status' => $incident->status === 'Returned' ? 'Pending' : $incident->status,
                 'admin_remarks' => null,
-            ]);
+            ];
+
+            // If updating, respect the current stage logic
+            // If it was 'Returned', set back to 'Pending' for re-approval
+            if ($incident->status === 'Returned') {
+                $updateData['status'] = 'Pending';
+            }
+            
+            // Allow stage change only if it was SIR or MDFI (Initial stages)
+            if ($request->has('stage') && in_array($incident->stage, ['SIR', 'MDFI'])) {
+                 $updateData['stage'] = $request->stage;
+            }
+
+            $incident->update($updateData);
 
             if ($request->hasFile('evidence')) {
                 foreach ($request->file('evidence') as $file) {
@@ -194,72 +220,103 @@ class IncidentController extends Controller
         return back()->with('success', 'Report updated and resubmitted.');
     }
 
-    // 6. IMPORT CSV
-    public function import(Request $request)
+   // 6. IMPORT CSV (Fixed: Matches Manual Entry Defaults)
+   public function import(Request $request)
     {
         $request->validate(['file' => 'required|mimes:csv,txt']);
 
-        $rows = array_map('str_getcsv', file($request->file->getRealPath()));
-        array_shift($rows);
+        $rows = array_map('str_getcsv', file($request->file('file')->getRealPath()));
+        array_shift($rows); 
 
         DB::transaction(function () use ($rows) {
             foreach ($rows as $row) {
                 if (count($row) < 6) continue;
 
+                $type        = $row[0];
+                $title       = $row[1];
+                $date        = $row[2];
+                $time        = $row[3];
+                $location    = $row[4];
+                $description = $row[5];
+                $stage       = $row[6] ?? 'SIR';
+                $status      = $row[7] ?? 'Pending';
+
+                // 1. Create the Incident
                 $incident = Incident::create([
-                    'type' => $row[0],
-                    'title' => $row[1],
-                    'incident_date' => $row[2] . ' ' . $row[3],
-                    'location' => $row[4],
-                    'description' => $row[5],
-                    'stage' => 'FIR',
-                    'status' => 'Case Closed',
-                    'reported_by' => Auth::user()->name ?? 'System Import',
-                    'alarm_level' => 'Low',
+                    'type'          => $type,
+                    'title'         => $title,
+                    'incident_date' => $date . ' ' . $time,
+                    'location'      => $location,
+                    'description'   => $description,
+                    'stage'         => $stage,
+                    'status'        => $status,
+                    'reported_by'   => Auth::user()->name ?? 'System Import',
+                    'alarm_level'   => 'Low',
                 ]);
 
-                IncidentHistory::create([
-                    'incident_id' => $incident->id,
-                    'stage' => 'FIR',
-                    'description' => $row[5],
-                    'title' => $row[1],
-                    'type' => $row[0],
-                    'location' => $row[4],
-                    'incident_date' => $incident->incident_date,
-                    'reported_by' => 'System Import',
-                    'images' => [],
-                ]);
+                // 2. BACKFILL HISTORY LOGS
+                // Define the sequence of stages
+                $workflow = ['SIR', 'PIR', 'FIR'];
+                
+                foreach ($workflow as $step) {
+                    // Create history for this step
+                    IncidentHistory::create([
+                        'incident_id'   => $incident->id,
+                        'stage'         => $step,
+                        'description'   => $description,
+                        'title'         => $title,
+                        'type'          => $type,
+                        'location'      => $location,
+                        'incident_date' => $incident->incident_date,
+                        'reported_by'   => 'Historical Import',
+                        'images'        => [],
+                    ]);
+
+                    // Stop once we have reached the stage defined in the CSV
+                    if ($step === $stage) {
+                        break;
+                    }
+                }
+
+                // Special handling for MDFI which is outside the SIR/PIR/FIR loop
+                if ($stage === 'MDFI' && !in_array('MDFI', $workflow)) {
+                     IncidentHistory::create([
+                        'incident_id'   => $incident->id,
+                        'stage'         => 'MDFI',
+                        'description'   => $description,
+                        'title'         => $title,
+                        'type'          => $type,
+                        'location'      => $location,
+                        'incident_date' => $incident->incident_date,
+                        'reported_by'   => 'Historical Import',
+                        'images'        => [],
+                    ]);
+                }
             }
         });
 
-        return back()->with('success', 'Historical incidents imported successfully!');
+        return back()->with('success', 'Incidents imported with complete historical timelines.');
     }
 
-    // 7. DOWNLOAD PDF (FINAL or HISTORY) ✅ UPDATED
+    // 7. DOWNLOAD PDF
     public function download(Request $request, $id)
     {
         $incident = Incident::findOrFail($id);
         $userRole = Auth::user()->role;
 
-        // Security Check
         if (!in_array($userRole, ['admin', 'clerk'])) {
             abort(403, 'Unauthorized access.');
         }
 
-        // HISTORY VERSION
         if ($request->has('history_id')) {
             $data = IncidentHistory::findOrFail($request->history_id);
-
             $images = $data->images ?? [];
             $viewData = $data;
             $filename = 'Report_History_' . $data->stage . '_' . $incident->id . '.pdf';
-        }
-        // FINAL VERSION
-        else {
+        } else {
             if ($incident->status !== 'Case Closed') {
                 abort(403, 'Report is not yet finalized.');
             }
-
             $images = $incident->images->pluck('image_path')->toArray();
             $viewData = $incident;
             $filename = 'Official_Report_INC-' . $incident->id . '.pdf';

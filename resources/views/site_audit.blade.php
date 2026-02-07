@@ -37,16 +37,30 @@
     {{-- TABLE SECTION --}}
     <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
         <div class="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="w-full md:w-1/2 relative">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-magnifying-glass"></i></span>
-                <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Search by audit ID, barangay, or owner..." class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
-            </div>
+            
+            {{-- SEARCH FORM (Fixed for Server-Side) --}}
+            <form action="{{ route('site_audit.index') }}" method="GET" class="w-full md:w-1/2 relative">
+                {{-- Keep risk filter active when searching --}}
+                @if(request('risk'))
+                    <input type="hidden" name="risk" value="{{ request('risk') }}">
+                @endif
+
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input type="text" 
+                       name="search" 
+                       value="{{ request('search') }}" 
+                       placeholder="Search by audit ID, barangay, or owner... (Press Enter)" 
+                       class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
+            </form>
             
             <div class="flex items-center gap-3 w-full md:w-auto">
+                {{-- Updated Select to keep Search term when filtering --}}
                 <select onchange="window.location.href=this.value" class="px-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-red-500 bg-white text-gray-600 w-full md:w-auto cursor-pointer">
-                    <option value="{{ route('site_audit.index', ['risk' => 'all']) }}" {{ request('risk') == 'all' ? 'selected' : '' }}>All Risk Levels</option>
-                    <option value="{{ route('site_audit.index', ['risk' => 'High']) }}" {{ request('risk') == 'High' ? 'selected' : '' }}>High Risk</option>
-                    <option value="{{ route('site_audit.index', ['risk' => 'Low']) }}" {{ request('risk') == 'Low' ? 'selected' : '' }}>Low Risk</option>
+                    <option value="{{ route('site_audit.index', ['risk' => 'all', 'search' => request('search')]) }}" {{ request('risk') == 'all' ? 'selected' : '' }}>All Risk Levels</option>
+                    <option value="{{ route('site_audit.index', ['risk' => 'High', 'search' => request('search')]) }}" {{ request('risk') == 'High' ? 'selected' : '' }}>High Risk</option>
+                    <option value="{{ route('site_audit.index', ['risk' => 'Low', 'search' => request('search')]) }}" {{ request('risk') == 'Low' ? 'selected' : '' }}>Low Risk</option>
                 </select>
             </div>
         </div>
@@ -142,12 +156,8 @@
                                 <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
                                     <h3 class="text-base font-semibold leading-6 text-gray-900" id="modal-title">Import Audit Data</h3>
                                     <div class="mt-2">
-                                      
-                                        
                                         <label class="block mb-2 text-sm font-medium text-gray-900" for="file_input">Upload file</label>
                                         <input class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none" id="file_input" name="file" type="file" accept=".csv" required>
-                                        
-                                    
                                     </div>
                                 </div>
                             </div>
@@ -162,7 +172,7 @@
         </div>
     </div>
 
-    {{-- NEW AUDIT MODAL (FULL FORM) --}}
+    {{-- NEW AUDIT MODAL (FULL FORM) - REMAINING THE SAME --}}
     <div id="newAuditModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -529,12 +539,6 @@
 
         function closeViewModal() { document.getElementById('viewAuditModal').classList.add('hidden'); }
         
-        function searchTable() {
-            let input = document.getElementById('searchInput').value.toLowerCase();
-            let rows = document.querySelectorAll('#auditTableBody tr');
-            rows.forEach(row => {
-                row.style.display = row.innerText.toLowerCase().includes(input) ? '' : 'none';
-            });
-        }
+        // REMOVED client-side searchTable() function since we are using server-side search now.
     </script>
 </x-layout>

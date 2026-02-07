@@ -54,14 +54,13 @@
                     <tr>
                         <th class="px-6 py-4">Barangay</th>
                         <th class="px-6 py-4 text-center">Fire Incidents</th>
-                        <th class="px-6 py-4 text-center">Failed Audits</th>
+                        <th class="px-6 py-4 text-center">Failed Compliance</th>
                         <th class="px-6 py-4 text-center">Risk Classification</th>
                         <th class="px-6 py-4 text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-sm">
                     @forelse($data as $row)
-                        {{-- Row is clickable, passes 'analysis' string to modal --}}
                         <tr onclick="openAnalyticsModal(
                             '{{ $row['name'] }}', 
                             '{{ $row['status'] }}', 
@@ -133,17 +132,22 @@
                         
                         {{-- Stats Grid --}}
                         <div class="grid grid-cols-3 gap-3 mb-6">
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
-                                <span class="block text-2xl font-bold text-gray-800" id="modalIncidents">0</span>
-                                <span class="text-[10px] text-gray-500 uppercase font-bold">Fire Incidents</span>
+                            {{-- 1. INCIDENT BOX (Clickable) --}}
+                            <div id="incidentBox" class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition group" title="View Incidents">
+                                <span class="block text-2xl font-bold text-gray-800 group-hover:text-blue-600" id="modalIncidents">0</span>
+                                <span class="text-[10px] text-gray-500 uppercase font-bold group-hover:text-blue-500">Fire Incidents <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[8px]"></i></span>
                             </div>
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
-                                <span class="block text-2xl font-bold text-red-600" id="modalFailed">0</span>
-                                <span class="text-[10px] text-gray-500 uppercase font-bold">Failed Audits</span>
+
+                            {{-- 2. FAILED AUDIT BOX (Clickable) --}}
+                            <div id="failedBox" class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center cursor-pointer hover:bg-red-50 hover:border-red-200 transition group" title="View Failed Audits">
+                                <span class="block text-2xl font-bold text-red-600 group-hover:text-red-700" id="modalFailed">0</span>
+                                <span class="text-[10px] text-gray-500 uppercase font-bold group-hover:text-red-600">Failed Audits <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[8px]"></i></span>
                             </div>
-                            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
-                                <span class="block text-2xl font-bold text-blue-600" id="modalTotal">0</span>
-                                <span class="text-[10px] text-gray-500 uppercase font-bold">Total Insp.</span>
+
+                            {{-- 3. TOTAL INSPECTIONS BOX (Clickable - NEW) --}}
+                            <div id="totalBox" class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition group" title="View All Inspections">
+                                <span class="block text-2xl font-bold text-blue-600 group-hover:text-blue-700" id="modalTotal">0</span>
+                                <span class="text-[10px] text-gray-500 uppercase font-bold group-hover:text-blue-600">Total Insp. <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[8px]"></i></span>
                             </div>
                         </div>
 
@@ -155,7 +159,6 @@
                                 <i class="fa-solid fa-magnifying-glass-chart mr-2"></i> Risk Analysis
                             </h4>
                             
-                            {{-- THE SENTENCE APPEARS HERE --}}
                             <p id="modalAnalysis" class="text-sm text-blue-800 font-medium leading-relaxed relative z-10">
                                 Loading analysis...
                             </p>
@@ -188,6 +191,28 @@
                 badge.className = "mt-1 inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide bg-green-100 text-green-700";
                 badge.innerText = "Low Risk";
             }
+
+            // LINK 1: Incidents -> Redirect to /incidents search
+            const incidentBox = document.getElementById('incidentBox');
+            incidentBox.onclick = function() {
+                const url = "{{ route('incidents.index') }}"; 
+                window.location.href = url + "?search=" + encodeURIComponent(name);
+            };
+
+            // LINK 2: Failed Audits -> Redirect to /site_audit search + High Risk filter
+            const failedBox = document.getElementById('failedBox');
+            failedBox.onclick = function() {
+                const url = "{{ route('site_audit.index') }}";
+                window.location.href = url + "?search=" + encodeURIComponent(name) + "&risk=High";
+            };
+
+            // LINK 3: Total Audits -> Redirect to /site_audit search (All Risks)
+            const totalBox = document.getElementById('totalBox');
+            totalBox.onclick = function() {
+                const url = "{{ route('site_audit.index') }}";
+                // Only filtering by name, not risk, so it shows all
+                window.location.href = url + "?search=" + encodeURIComponent(name);
+            };
 
             document.getElementById('analyticsModal').classList.remove('hidden');
         }

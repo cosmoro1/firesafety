@@ -34,8 +34,8 @@ class TrainingController extends Controller
             $query->where('industry_type', $request->industry);
         }
 
-        // Get Results (Latest first)
-        $trainings = $query->latest('date_conducted')->paginate(10);
+        // Get Results (Latest scheduled date first)
+        $trainings = $query->orderBy('date_conducted', 'desc')->paginate(10);
 
         return view('training', compact('trainings'));
     }
@@ -54,8 +54,11 @@ class TrainingController extends Controller
             'representative_name' => 'required|string|max:255',
             'representative_email' => 'required|email|max:255',
             'topic' => 'required|string|max:255',
-            'date_conducted' => 'required|date',
+            // VALIDATION: Prevents selecting a past date
+            'date_conducted' => 'required|date|after_or_equal:today', 
             'attendees_count' => 'required|integer|min:1',
+        ], [
+            'date_conducted.after_or_equal' => 'You cannot schedule a seminar in the past. Please select today or a future date.'
         ]);
 
         $validated['status'] = 'Scheduled';
@@ -66,24 +69,24 @@ class TrainingController extends Controller
             ->with('success', 'New seminar scheduled successfully!');
     }
 
-    // --- 3. SEND EMAIL (FIXED LOGIC) ---
+    // --- 3. SEND EMAIL ---
     public function sendEmail(Request $request, Training $training)
-{
-    // FIX: Allow this specific process to run for 5 minutes (300 seconds)
-    set_time_limit(300); 
+    {
+        // Increase timeout for file uploads/email sending (5 minutes)
+        set_time_limit(300); 
 
-    if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
+        if (!in_array(auth()->user()->role, ['admin', 'clerk'])) {
             abort(403, 'Unauthorized access.');
         }
 
         // 1. Validate Files
         $request->validate([
             'certificate_files' => 'required', 
-            'certificate_files.*' => 'file|mimes:pdf,jpg,png,jpeg|max:10240', // 10MB Limit
+            'certificate_files.*' => 'file|mimes:pdf,jpg,png,jpeg|max:10240', // 10MB Max per file
         ]);
 
-        // 2. DETERMINE RECIPIENT EMAIL (FIXED)
-        // usage of ?: ensures we ignore empty strings from the form and use the DB value instead
+        // 2. Determine Recipient Email
+        // Uses the one from the form first; falls back to database record if form is empty
         $recipientEmail = $request->input('representative_email') ?: $training->representative_email;
 
         if (empty($recipientEmail)) {
@@ -108,10 +111,9 @@ class TrainingController extends Controller
                 new TrainingCertificate($training, $filesData)
             );
 
-            // 5. Update Status & Save Email if it was missing in DB
+            // 5. Update Status & Save Email if missing
             $updateData = ['status' => 'Issued'];
             
-            // If the database didn't have the email, save the one we just used
             if(empty($training->representative_email)) {
                 $updateData['representative_email'] = $recipientEmail;
             }
@@ -139,9 +141,12 @@ class TrainingController extends Controller
             'representative_name' => 'required|string|max:255',
             'representative_email' => 'required|email|max:255',
             'topic' => 'required|string|max:255',
-            'date_conducted' => 'required|date',
+            // VALIDATION: Prevents selecting a past date during edit
+            'date_conducted' => 'required|date|after_or_equal:today',
             'attendees_count' => 'required|integer|min:1',
             'status' => 'required|string', 
+        ], [
+            'date_conducted.after_or_equal' => 'You cannot move a seminar to a past date.'
         ]);
 
         $training->update($validated);

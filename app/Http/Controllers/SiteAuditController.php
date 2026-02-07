@@ -8,20 +8,52 @@ use Illuminate\Support\Facades\Auth;
 
 class SiteAuditController extends Controller
 {
-    // 1. VIEW AUDITS
+    /* =========================================================
+     * CENTRALIZED RISK LOGIC (DO NOT CHANGE BEHAVIOR)
+     * ========================================================= */
+    private function evaluateRisk(float $score, int $severity3Count): array
+    {
+        // 1. Critical Hazard Rule: 3 or more Severity 3 issues = HIGH
+        if ($severity3Count >= 3) {
+            return [
+                'level'  => 'High',
+                'reason' => 'Multiple critical fire hazards detected'
+            ];
+        }
+
+        // 2. Score Rule: Below 65% = HIGH
+        if ($score < 65) {
+            return [
+                'level'  => 'High',
+                'reason' => 'Low compliance score'
+            ];
+        }
+
+        // 3. Default = LOW
+        return [
+            'level'  => 'Low',
+            'reason' => 'Meets minimum safety requirements'
+        ];
+    }
+
+    /* =========================================================
+     * 1. VIEW AUDITS
+     * ========================================================= */
     public function index(Request $request)
     {
         $query = SiteAudit::latest();
 
-        if ($request->has('risk') && $request->input('risk') !== 'all') {
-            $query->where('risk_level', $request->input('risk'));
+        // Filter by Risk
+        if ($request->filled('risk') && $request->risk !== 'all') {
+            $query->where('risk_level', $request->risk);
         }
 
-        if ($request->has('search') && $request->input('search') != '') {
-            $search = $request->input('search');
+        // Search Logic
+        if ($request->filled('search')) {
+            $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('owner_name', 'like', "%{$search}%")
-                  ->orWhere('barangay', 'like', "%{$search}%")
+                $q->where('owner_name', 'like', "%$search%")
+                  ->orWhere('barangay', 'like', "%$search%")
                   ->orWhere('id', $search);
             });
         }
@@ -31,14 +63,15 @@ class SiteAuditController extends Controller
         return view('site_audit', compact('audits'));
     }
 
-    // 2. STORE AUDIT (Manual Entry)
+    /* =========================================================
+     * 2. STORE AUDIT (MANUAL ENTRY)
+     * ========================================================= */
     public function store(Request $request)
     {
         $checklistResponses = $request->input('checklist', []);
 
         // CHECKLIST RULES
         $checklistRules = [
-            // A. KAAYUSAN SA BAHAY
             1  => ['safe' => 'Yes'],
             2  => ['safe' => 'Yes', 'critical' => true, 'severity' => 2, 'label' => 'Improper storage of flammables'],
             3  => ['safe' => 'Yes'],
@@ -47,11 +80,9 @@ class SiteAuditController extends Controller
             6  => ['safe' => 'Yes'],
             7  => ['safe' => 'Yes'],
             8  => ['safe' => 'Yes'],
-            9  => ['safe' => 'No',  'critical' => true, 'severity' => 3, 'label' => 'Smoking indoors detected'],
-
-            // B. KONEKSYONG ELEKTRIKAL
-            10 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'No Circuit Breaker'],
-            11 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Exposed wiring or panels'],
+            9  => ['safe' => 'No',  'critical' => true, 'severity' => 3, 'label' => 'Smoking indoors'],
+            10 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'No circuit breaker'],
+            11 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Exposed wiring'],
             12 => ['safe' => 'Yes'],
             13 => ['safe' => 'Yes', 'critical' => true, 'severity' => 2, 'label' => 'Outlet overloading'],
             14 => ['safe' => 'Yes'],
@@ -61,32 +92,28 @@ class SiteAuditController extends Controller
             18 => ['safe' => 'Yes'],
             19 => ['safe' => 'Yes'],
             20 => ['safe' => 'Yes'],
-
-            // C. KAAYUSAN SA KUSINA
-            21 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Unattended cooking risks'],
+            21 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Unattended cooking'],
             22 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Improper LPG storage'],
             23 => ['safe' => 'Yes'],
             24 => ['safe' => 'Yes'],
             25 => ['safe' => 'Yes'],
             26 => ['safe' => 'Yes'],
             27 => ['safe' => 'Yes'],
-            28 => ['safe' => 'Yes', 'critical' => true, 'severity' => 2, 'label' => 'Improper candle/lighter storage'],
-
-            // D. DAANAN O LABASAN
-            29 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Blocked exits/windows'],
+            28 => ['safe' => 'Yes', 'critical' => true, 'severity' => 2, 'label' => 'Improper candle storage'],
+            29 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Blocked exits'],
             30 => ['safe' => 'Yes'],
-            31 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Poor emergency exit access'],
+            31 => ['safe' => 'Yes', 'critical' => true, 'severity' => 3, 'label' => 'Poor emergency access'],
             32 => ['safe' => 'Yes'],
             33 => ['safe' => 'Yes'],
             34 => ['safe' => 'Yes'],
         ];
 
-        // SCORING
         $rawScore = 0;
         $severity3Count = 0;
         $penaltyPoints = 0;
         $violationNotes = [];
 
+        // Calculate Checklist Score
         foreach ($checklistRules as $id => $rule) {
             $answer = $checklistResponses[$id] ?? null;
 
@@ -95,10 +122,10 @@ class SiteAuditController extends Controller
             }
 
             if (($rule['critical'] ?? false) && $answer !== $rule['safe']) {
-                if ($rule['severity'] == 3) {
+                if (($rule['severity'] ?? 0) === 3) {
                     $severity3Count++;
                 }
-                $penaltyPoints += $rule['severity'];
+                $penaltyPoints += ($rule['severity'] ?? 0);
                 $violationNotes[] = $rule['label'];
             }
         }
@@ -107,45 +134,36 @@ class SiteAuditController extends Controller
         $structureData = $request->input('struct', []);
         $structureScore = 0;
         $structurePossible = 0;
-        $structuralParts = ['ROOF', 'CEILING', 'ROOM PARTITIONS', 'TRUSSES', 'WINDOWS', 'CORRIDOR WALLS', 'COLUMNS', 'MAIN DOOR', 'EXTERIOR WALL', 'BEAMS'];
 
-        foreach ($structuralParts as $part) {
-            if (isset($structureData[$part]['material'])) {
+        foreach ($structureData as $part) {
+            if (isset($part['material'])) {
                 $structurePossible++;
-                if (in_array($structureData[$part]['material'], ['cement', 'metal'])) {
+                if (in_array($part['material'], ['cement', 'metal'])) {
                     $structureScore++;
                 }
             }
         }
-        if ($structurePossible == 0) $structurePossible = 1;
 
-        // FINAL CALCULATION
-        $totalRawScore = $rawScore + $structureScore;
+        if ($structurePossible === 0) $structurePossible = 1;
+
+        // FINAL SCORE CALCULATION
+        $totalRaw = $rawScore + $structureScore;
         $totalPossible = count($checklistRules) + $structurePossible;
-        $basePercentage = ($totalRawScore / $totalPossible) * 100;
-        $penaltyDeduction = min($penaltyPoints * 2.5, 35);
-        $finalScore = max(0, $basePercentage - $penaltyDeduction);
+        $basePercent = ($totalRaw / $totalPossible) * 100;
+        $penalty = min($penaltyPoints * 2.5, 35);
+        $finalScore = max(0, $basePercent - $penalty);
 
-        // RISK LEVEL (High / Low Only)
-        if ($finalScore < 65) {
-            $riskLevel = 'High';
-        } else {
-            $riskLevel = 'Low';
-        }
+        // RISK EVALUATION
+        $riskData = $this->evaluateRisk($finalScore, $severity3Count);
 
-        // Safety Net
-        if ($severity3Count >= 3) {
-            $riskLevel = 'High';
-        }
-
-        // Remarks
-        $remarks = $riskLevel . " Risk: Final score " . round($finalScore, 0) . "%. ";
+        // GENERATE REMARKS
+        $remarks = "{$riskData['level']} Risk — {$riskData['reason']}. Final Score: " . round($finalScore, 1) . "%.";
+        
         if (!empty($violationNotes)) {
-            $remarks .= "Critical hazards detected: " . implode(', ', $violationNotes) . ".";
-        } else {
-            $remarks .= "No critical hazards detected.";
+             $remarks .= " Hazards: " . implode(', ', $violationNotes) . ".";
         }
 
+        // SAVE
         SiteAudit::create([
             'barangay' => $request->barangay,
             'owner_name' => $request->owner_name,
@@ -155,83 +173,59 @@ class SiteAuditController extends Controller
             'contact_number' => $request->contact_number,
             'structure_data' => $structureData,
             'checklist_data' => $checklistResponses,
-            'hazards' => $request->hazards,
+            'hazards' => implode(', ', $violationNotes),
             'compliance_score' => round($finalScore, 2),
-            'risk_level' => $riskLevel,
+            'risk_level' => $riskData['level'],
             'remarks' => $remarks,
             'auditor_id' => Auth::id(),
         ]);
 
-        return redirect()->back()->with(
+        return back()->with(
             'success',
-            "Audit Saved! Final Score: " . round($finalScore, 2) . "% ({$riskLevel} Risk)"
+            "Audit Saved! {$riskData['level']} Risk — " . round($finalScore, 1) . "%"
         );
     }
 
-    // 3. IMPORT CSV (The Missing Method)
+    /* =========================================================
+     * 3. IMPORT CSV
+     * ========================================================= */
     public function import(Request $request)
     {
         $request->validate([
             'file' => 'required|mimes:csv,txt'
         ]);
 
-        $file = $request->file('file');
-        
-        // Read file into array
-        $fileData = array_map('str_getcsv', file($file->getRealPath()));
-        
-        // Remove Header Row
-        if (count($fileData) > 0) {
-            array_shift($fileData); 
-        }
+        $rows = array_map('str_getcsv', file($request->file('file')->getRealPath()));
+        array_shift($rows); // remove header
 
-        foreach ($fileData as $row) {
-            // CSV Columns: 
-            // 0: barangay, 1: owner_name, 2: type, 3: address, 
-            // 4: contact_person, 5: is_wood (Yes/No), 6: violations
-            
-            // Skip empty or invalid rows
-            if(count($row) < 6) continue;
+        foreach ($rows as $row) {
+            // Ensure row has data
+            if (count($row) < 6) continue;
 
-            $barangay = $row[0];
-            $owner = $row[1];
-            $type = $row[2];
-            $address = $row[3];
-            $contact = $row[4];
-            $isWood = isset($row[5]) && strtolower(trim($row[5])) === 'yes';
-            
-            // Handle violations (column 6 might be empty or missing depending on csv export)
-            $violationsRaw = isset($row[6]) ? $row[6] : '';
+            // Safely extract columns using array_pad
+            [$barangay, $owner, $type, $address, $contact, $isWoodRaw, $violationsRaw] = 
+                array_pad($row, 7, '');
 
-            // --- BUILD STRUCTURE DATA ---
-            $material = $isWood ? 'wood' : 'cement';
+            $isWood = strtolower(trim($isWoodRaw)) === 'yes';
+
+            // Reconstruct structure data for consistency
             $structureData = [
-                'EXTERIOR WALL' => ['material' => $material],
-                'ROOF' => ['material' => 'metal'], 
-                'MAIN DOOR' => ['material' => 'wood'] 
+                'EXTERIOR WALL' => ['material' => $isWood ? 'wood' : 'cement'],
+                'ROOF' => ['material' => 'metal'],
+                'MAIN DOOR' => ['material' => 'wood'],
             ];
 
-            // --- CALCULATE SCORE ---
-            $score = 100;
-            if($isWood) $score -= 20; // Big penalty for wood
+            // Parse Violations from CSV string
+            $violations = array_filter(array_map('trim', explode(',', $violationsRaw)));
+            $severity3Count = count($violations); // Assume all CSV violations are critical for safety
 
-            $violationList = array_map('trim', explode(',', $violationsRaw));
-            $violationCount = 0;
-            
-            foreach($violationList as $v) {
-                if(!empty($v)) {
-                    $score -= 10;
-                    $violationCount++;
-                }
-            }
+            // Calculate Score (Simple logic for imports)
+            $score = ($isWood ? 80 : 100) - ($severity3Count * 10);
+            $score = max(0, $score);
 
-            // --- DETERMINE RISK ---
-            $risk = ($score < 65) ? 'High' : 'Low';
-            
-            // Safety Net: 3+ violations = Auto High
-            if($violationCount >= 3) $risk = 'High';
+            // RISK EVALUATION
+            $riskData = $this->evaluateRisk($score, $severity3Count);
 
-            // --- SAVE ---
             SiteAudit::create([
                 'barangay' => $barangay,
                 'owner_name' => $owner,
@@ -239,16 +233,16 @@ class SiteAuditController extends Controller
                 'address' => $address,
                 'contact_person' => $contact,
                 'contact_number' => $contact,
-                'structure_data' => $structureData, // This is critical for HighRiskController logic
-                'checklist_data' => [], 
+                'structure_data' => $structureData,
+                'checklist_data' => [], // Empty checklist for imports
                 'hazards' => $violationsRaw,
-                'compliance_score' => max(0, $score),
-                'risk_level' => $risk,
-                'remarks' => "Imported Data. $risk Risk. " . $violationsRaw,
+                'compliance_score' => $score,
+                'risk_level' => $riskData['level'],
+                'remarks' => "Imported Data — {$riskData['reason']}. Score: $score%.",
                 'auditor_id' => Auth::id(),
             ]);
         }
 
-        return redirect()->back()->with('success', 'CSV Data Imported Successfully!');
+        return back()->with('success', 'CSV Data Imported Successfully!');
     }
 }

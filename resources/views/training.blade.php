@@ -107,7 +107,7 @@
                                     '{{ addslashes($training->company_name) }}', 
                                     '{{ $training->industry_type }}', 
                                     '{{ addslashes($training->representative_name) }}', 
-                                    '{{ $training->representative_email }}', {{-- ADDED EMAIL HERE --}}
+                                    '{{ $training->representative_email }}', 
                                     '{{ $training->status }}', 
                                     '{{ \Carbon\Carbon::parse($training->date_conducted)->format('M d, Y') }}',
                                     {{ $training->attendees_count }}
@@ -185,9 +185,12 @@
                                     </div>
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                                            <input type="date" name="date_conducted" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500">
-                                        </div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+    {{-- UPDATED: Forces Manila Timezone --}}
+    <input type="date" name="date_conducted" required 
+           min="{{ \Carbon\Carbon::now('Asia/Manila')->format('Y-m-d') }}" 
+           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500">
+</div>
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Attendees</label>
                                             <input type="number" name="attendees_count" value="1" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500">
@@ -227,7 +230,6 @@
                                 </div>
                                 <div class="space-y-2">
                                     <p class="text-sm"><i class="fa-solid fa-user-tie text-blue-500 mr-2"></i> <span id="modalRep">Rep Name</span></p>
-                                    {{-- ADDED EMAIL DISPLAY --}}
                                     <p class="text-sm"><i class="fa-solid fa-envelope text-gray-500 mr-2"></i> <span id="modalEmail" class="text-gray-700">email@example.com</span></p>
                                     <p class="text-sm"><i class="fa-solid fa-calendar text-red-500 mr-2"></i> <span id="modalDate">Date</span></p>
                                     <p class="text-sm"><i class="fa-solid fa-users text-orange-500 mr-2"></i> <span id="modalAttendees">0</span> Attendees</p>
@@ -237,7 +239,6 @@
                             {{-- Email Form --}}
                             <form id="emailForm" method="POST" action="" enctype="multipart/form-data">
                                 @csrf
-                                {{-- ADDED HIDDEN EMAIL INPUT --}}
                                 <input type="hidden" name="representative_email" id="hiddenEmail">
                                 
                                 <input type="file" name="certificate_files[]" id="certificateFiles" class="hidden" multiple accept=".pdf,.jpg,.png,.jpeg" onchange="handleFileSelect(this)">
@@ -327,9 +328,12 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                                        <input type="date" name="date_conducted" id="edit_date_conducted" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500">
-                                    </div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+    {{-- UPDATED: Forces Manila Timezone --}}
+    <input type="date" name="date_conducted" id="edit_date_conducted" 
+           min="{{ \Carbon\Carbon::now('Asia/Manila')->format('Y-m-d') }}" 
+           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500">
+</div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Attendees</label>
                                         <input type="number" name="attendees_count" id="edit_attendees_count" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500">
@@ -369,14 +373,14 @@
             document.getElementById('modalCompany').innerText = company;
             document.getElementById('modalIndustry').innerText = industry;
             document.getElementById('modalRep').innerText = rep;
-            document.getElementById('modalEmail').innerText = email; // Show Email
+            document.getElementById('modalEmail').innerText = email; 
             document.getElementById('modalStatus').innerText = status;
             document.getElementById('modalDate').innerText = date;
             document.getElementById('modalAttendees').innerText = attendees;
 
             // Reset Email Form
             document.getElementById('emailForm').action = "/training/" + id + "/email";
-            document.getElementById('hiddenEmail').value = email; // Populate hidden field
+            document.getElementById('hiddenEmail').value = email; 
             document.getElementById('certificateFiles').value = ""; 
             document.getElementById('previewContainer').innerHTML = ""; 
             document.getElementById('previewContainer').classList.add('hidden'); 

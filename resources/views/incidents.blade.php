@@ -31,31 +31,41 @@
     {{-- 2. SEARCH & FILTER --}}
     <div class="bg-white border border-gray-200 rounded-xl shadow-sm mb-6">
         <div class="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="w-full md:w-96 relative">
+            
+            {{-- SEARCH FORM --}}
+            <form action="{{ route('incidents.index') }}" method="GET" class="w-full md:w-96 relative">
+                @if(request('status'))
+                    <input type="hidden" name="status" value="{{ request('status') }}">
+                @endif
+
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
                     <i class="fa-solid fa-magnifying-glass"></i>
                 </span>
-                <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Search ID, location, or officer..." class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
-            </div>
+                <input type="text" 
+                       name="search" 
+                       value="{{ request('search') }}" 
+                       placeholder="Search ID, barangay, or officer... (Press Enter)" 
+                       class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
+            </form>
 
             @if(auth()->user()->role !== 'clerk')
             <div class="flex items-center gap-2 overflow-x-auto pb-2">
-                <button onclick="window.location.href='{{ route('incidents.index', ['status' => 'all']) }}'" 
-                        class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'all' || !request('status') ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                <a href="{{ route('incidents.index', ['status' => 'all', 'search' => request('search')]) }}" 
+                   class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'all' || !request('status') ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     All
-                </button>
-                <button onclick="window.location.href='{{ route('incidents.index', ['status' => 'Returned']) }}'" 
-                        class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Returned' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                </a>
+                <a href="{{ route('incidents.index', ['status' => 'Returned', 'search' => request('search')]) }}" 
+                   class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Returned' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     Returned
-                </button>
-                <button onclick="window.location.href='{{ route('incidents.index', ['status' => 'Pending']) }}'" 
-                        class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Pending' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                </a>
+                <a href="{{ route('incidents.index', ['status' => 'Pending', 'search' => request('search')]) }}" 
+                   class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Pending' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     Pending
-                </button>
-                <button onclick="window.location.href='{{ route('incidents.index', ['status' => 'Case Closed']) }}'" 
-                        class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Case Closed' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                </a>
+                <a href="{{ route('incidents.index', ['status' => 'Case Closed', 'search' => request('search')]) }}" 
+                   class="shrink-0 whitespace-nowrap px-4 py-1.5 text-sm font-medium rounded-md shadow-sm transition {{ request('status') == 'Case Closed' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
                     Closed
-                </button>
+                </a>
             </div>
             @endif
         </div>
@@ -67,7 +77,8 @@
                     <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold">
                         <th class="px-6 py-4">ID</th>
                         <th class="px-6 py-4">Stage</th>
-                        <th class="px-6 py-4">Title / Location</th>
+                        <th class="px-6 py-4">Title</th>
+                        <th class="px-6 py-4">Barangay</th>
                         <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Officer</th>
                         <th class="px-6 py-4">Status</th>
@@ -92,10 +103,8 @@
                                     {{ $incident->stage }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4">
-                                <div class="font-medium text-gray-900">{{ Str::limit($incident->title, 30) }}</div>
-                                <div class="text-xs text-gray-500 mt-0.5">{{ $incident->location }}</div>
-                            </td>
+                            <td class="px-6 py-4 font-medium text-gray-900">{{ Str::limit($incident->title, 30) }}</td>
+                            <td class="px-6 py-4 text-gray-600">{{ $incident->location }}</td>
                             <td class="px-6 py-4 text-gray-600">{{ \Carbon\Carbon::parse($incident->incident_date)->format('M d, Y') }}</td>
                             <td class="px-6 py-4 text-gray-600">{{ $incident->reported_by }}</td>
                             <td class="px-6 py-4">
@@ -115,12 +124,10 @@
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <div class="flex items-center justify-center gap-2">
-                                    @if(auth()->user()->role !== 'clerk')
-    <button onclick="openTimelineModal('{{ $incident->id }}', '{{ $incident->stage }}', '{{ $incident->status }}', '{{ addslashes($incident->admin_remarks) }}', {{ json_encode($incident->history) }})" 
-    class="text-blue-600 hover:text-blue-800 bg-blue-50 p-2 rounded-lg transition" title="View Timeline">
-    <i class="fa-solid fa-list-check"></i>
-</button>
-@endif
+                                    <button onclick="openTimelineModal('{{ $incident->id }}', '{{ $incident->stage }}', '{{ $incident->status }}', '{{ addslashes($incident->admin_remarks) }}', {{ json_encode($incident->history) }})" 
+                                        class="text-blue-600 hover:text-blue-800 bg-blue-50 p-2 rounded-lg transition" title="View Timeline">
+                                        <i class="fa-solid fa-list-check"></i>
+                                    </button>
 
                                     <button onclick="openViewModal(
                                         '{{ $incident->id }}', 
@@ -155,7 +162,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-10 text-center text-gray-500">
+                            <td colspan="8" class="px-6 py-10 text-center text-gray-500">
                                 <i class="fa-regular fa-folder-open text-3xl mb-3 block text-gray-300"></i>
                                 No reports found.
                             </td>
@@ -195,7 +202,9 @@
                         <span class="text-xs font-bold mt-2 text-gray-500">Final</span>
                     </div>
                 </div>
+                
                 <div id="historyDisplayArea" class="mb-6 min-h-[120px] transition-all duration-300"></div>
+                
                 <div id="timelineRemarksBox" class="hidden bg-red-50 border border-red-100 p-4 rounded-xl mb-6 flex gap-3">
                     <i class="fa-solid fa-circle-exclamation text-red-500 mt-1"></i>
                     <div>
@@ -203,16 +212,32 @@
                         <p id="timelineRemarksText" class="text-red-600 text-sm mt-1"></p>
                     </div>
                 </div>
+
                 @if(auth()->user()->role === 'admin')
+                {{-- FIX: Using Show/Hide Logic instead of overwriting HTML --}}
+                
+                {{-- 1. Locked Badge (Hidden by default) --}}
+                <div id="finalizedBadge" class="hidden w-full text-center py-4 border-t border-gray-100 mt-4">
+                    <span class="px-6 py-2 bg-green-100 text-green-700 font-bold rounded-full text-xs uppercase tracking-wide border border-green-200">
+                        <i class="fa-solid fa-lock mr-2"></i> Case Finalized & Archived
+                    </span>
+                </div>
+
+                {{-- 2. Action Buttons (Visible by default) --}}
                 <div id="adminActions" class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button onclick="showReturnForm()" class="px-4 py-2 text-red-600 font-bold text-sm border border-red-200 rounded-lg hover:bg-red-50 transition"><i class="fa-solid fa-rotate-left mr-2"></i> Return to Officer</button>
+                    <button onclick="showReturnForm()" class="px-4 py-2 text-red-600 font-bold text-sm border border-red-200 rounded-lg hover:bg-red-50 transition">
+                        <i class="fa-solid fa-rotate-left mr-2"></i> Return to Officer
+                    </button>
                     <form id="approveForm" method="POST">
                         @csrf
                         @method('PUT')
                         <input type="hidden" name="action" value="approve">
-                        <button type="submit" id="nextStageBtn" class="px-6 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-md transition">Approve & Next Stage <i class="fa-solid fa-arrow-right ml-2"></i></button>
+                        <button type="submit" id="nextStageBtn" class="px-6 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 shadow-md transition">
+                            Approve & Next Stage <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </button>
                     </form>
                 </div>
+
                 <form id="returnForm" method="POST" class="hidden mt-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
                     @csrf
                     @method('PUT')
@@ -229,7 +254,8 @@
         </div>
     </dialog>
 
-    {{-- MODAL: VIEW DETAILS --}}
+    {{-- MODAL: VIEW DETAILS, IMPORT, FORM (Same as before) --}}
+    {{-- ... Skipping repeated HTML for brevity, using JS to handle ... --}}
     <div id="viewReportModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeViewModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -253,26 +279,20 @@
                             <div><p class="text-sm text-gray-500">Reported By</p><p id="viewOfficer" class="font-medium text-gray-900"></p></div>
                         </div>
                         <div id="viewImageContainer" class="hidden mb-4"><p class="text-sm text-gray-500 mb-2">Attached Evidence</p><div id="viewImageGrid" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div></div>
-                        <div><p class="text-sm text-gray-500">Incident Title / Location</p><p id="viewTitle" class="font-medium text-gray-900"></p></div>
+                        <div><p class="text-sm text-gray-500">Incident Title</p><p id="viewTitle" class="font-medium text-gray-900"></p></div>
                         <div><p class="text-sm text-gray-500 mb-1">Description</p><div id="viewDescription" class="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 border border-gray-100 whitespace-pre-wrap"></div></div>
                     </div>
-                    
-                    {{-- UPDATED FOOTER with "View Full Report" --}}
                     <div class="bg-gray-50 px-6 py-3 flex justify-between items-center">
                         <div class="flex gap-2">
-                            {{-- NEW: View Full Report Button --}}
                             <a id="viewFullReportBtn" href="#" class="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition">
                                 <i class="fa-solid fa-file-invoice mr-2"></i> View Full Report
                             </a>
-
-                            {{-- EXISTING: Download Button --}}
                             @if(in_array(auth()->user()->role, ['admin', 'clerk']))
                                 <a id="viewDownloadBtn" href="#" target="_blank" class="hidden inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 transition">
                                     <i class="fa-solid fa-file-pdf mr-2"></i> Download Official Report
                                 </a>
                             @endif
                         </div>
-
                         <button onclick="closeViewModal()" class="inline-flex justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:w-auto">Close</button>
                     </div>
                 </div>
@@ -280,7 +300,6 @@
         </div>
     </div>
 
-    {{-- MODAL: IMPORT --}}
     @if(auth()->user()->role !== 'clerk')
     <div id="importModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeImportModal()"></div>
@@ -291,7 +310,7 @@
                         @csrf
                         <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                             <h3 class="text-lg font-semibold leading-6 text-gray-900 mb-4">Import Historical Incidents</h3>
-                            <div class="mb-4 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-700"><strong>Format:</strong> Type, Title, Date (YYYY-MM-DD), Time (HH:MM), Location, Description, Status (optional)</div>
+                            <div class="mb-4 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-700"><strong>Format:</strong> Type, Title, Date (YYYY-MM-DD), Time (HH:MM), Location, Description, Stage (optional), Status (optional)</div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Upload CSV File</label>
                             <input type="file" name="file" accept=".csv" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"/>
                         </div>
@@ -306,7 +325,6 @@
     </div>
     @endif
 
-    {{-- MODAL: FORM (NEW/EDIT) --}}
     <div id="formModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeFormModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -328,17 +346,12 @@
                                     <option value="Vehicular">Vehicular</option>
                                 </select>
                             </div>
-                            
-                            {{-- INVESTIGATION STAGE SELECTOR (Dynamic) --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Investigation Stage</label>
                                 <input type="hidden" name="stage" id="inputStage" value="SIR"> 
-                                <div class="grid grid-cols-2 gap-3" id="stageButtonsGrid">
-                                    {{-- Buttons injected via JS --}}
-                                </div>
+                                <div class="grid grid-cols-2 gap-3" id="stageButtonsGrid"></div>
                                 <p class="text-[10px] text-gray-500 mt-2 italic">Note: PIR and FIR stages are managed by Admin based on investigation progress.</p>
                             </div>
-
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Incident Title <span class="text-red-500">*</span></label>
                                 <input type="text" name="title" id="inputTitle" placeholder="e.g., Residential Fire" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500" required>
@@ -449,9 +462,32 @@
         const returnForm = document.getElementById('returnForm');
         if (returnForm) returnForm.action = "/incidents/" + id + "/status";
 
+        // FIX: Re-initialize the visual elements every time
+        const adminActions = document.getElementById('adminActions');
+        const finalizedBadge = document.getElementById('finalizedBadge');
+        
+        if (status === 'Case Closed') {
+            // Hide Buttons, Show Locked Badge
+            if(adminActions) adminActions.classList.add('hidden');
+            if(finalizedBadge) finalizedBadge.classList.remove('hidden');
+        } else {
+            // Show Buttons, Hide Locked Badge
+            if(adminActions) adminActions.classList.remove('hidden');
+            if(finalizedBadge) finalizedBadge.classList.add('hidden');
+            
+            // Set Button Text dynamically
+            const nextBtn = document.getElementById('nextStageBtn');
+            if(nextBtn) {
+                if(stage === 'SIR') nextBtn.innerHTML = 'Approve SIR & Move to PIR <i class="fa-solid fa-arrow-right ml-2"></i>';
+                else if(stage === 'PIR') nextBtn.innerHTML = 'Approve PIR & Move to FIR <i class="fa-solid fa-arrow-right ml-2"></i>';
+                else nextBtn.innerHTML = 'Finalize & Close Case <i class="fa-solid fa-lock ml-2"></i>';
+            }
+        }
+
         const steps = ['SIR', 'PIR', 'FIR'];
         steps.forEach((s) => {
             const el = document.getElementById('step-' + s);
+            // Reset to default grey state first
             el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-white border-gray-300 text-gray-400 transition-all cursor-pointer hover:border-blue-400 hover:scale-105";
             el.innerHTML = steps.indexOf(s) + 1;
             el.onclick = () => showHistoryContent(s);
@@ -460,21 +496,21 @@
         let activeIndex = steps.indexOf(stage);
         if (stage === 'MDFI') activeIndex = 2; 
 
-        for (let i = 0; i <= activeIndex; i++) {
+        // Apply colors and icons based on state
+        for (let i = 0; i <= 2; i++) {
             const el = document.getElementById('step-' + steps[i]);
-            if(i < activeIndex) {
+            
+            if (status === 'Case Closed' && steps[i] === 'FIR') {
                 el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-green-500 border-green-200 text-white transition-all cursor-pointer";
                 el.innerHTML = '<i class="fa-solid fa-check"></i>';
-            } else {
+            }
+            else if (i < activeIndex) {
+                el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-green-500 border-green-200 text-white transition-all cursor-pointer";
+                el.innerHTML = '<i class="fa-solid fa-check"></i>';
+            } 
+            else if (i === activeIndex && status !== 'Case Closed') {
                 el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-blue-600 border-blue-200 text-white transition-all cursor-pointer";
             }
-        }
-
-        const nextBtn = document.getElementById('nextStageBtn');
-        if(nextBtn) {
-            if(stage === 'SIR') nextBtn.innerHTML = 'Approve SIR & Move to PIR <i class="fa-solid fa-arrow-right ml-2"></i>';
-            else if(stage === 'PIR') nextBtn.innerHTML = 'Approve PIR & Move to FIR <i class="fa-solid fa-arrow-right ml-2"></i>';
-            else nextBtn.innerHTML = 'Finalize & Close Case <i class="fa-solid fa-lock ml-2"></i>';
         }
 
         showHistoryContent(stage === 'MDFI' ? 'FIR' : stage);
@@ -536,7 +572,6 @@
         document.getElementById('viewOfficer').innerText = officer;
         document.getElementById('viewDescription').innerText = description;
         
-        // --- NEW: Update View Full Report Link ---
         const fullReportBtn = document.getElementById('viewFullReportBtn');
         if (fullReportBtn) {
             fullReportBtn.href = "/incidents/" + id;
@@ -587,25 +622,21 @@
 
     function renderStageButtons(currentStage) {
         const container = document.getElementById('stageButtonsGrid');
-        container.innerHTML = ''; // Clear existing
+        container.innerHTML = ''; 
 
         if (currentStage === 'SIR') {
-            // New Report or SIR Edit: Show SIR (Selected) and MDFI
             container.innerHTML = `
                 <button type="button" onclick="selectStage(this, 'SIR')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">SIR (Standard)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">MDFI (Minor)</button>
             `;
             document.getElementById('inputStage').value = 'SIR';
         } else if (currentStage === 'PIR' || currentStage === 'FIR') {
-            // Editing PIR/FIR: Remove SIR button. Show Current (Selected) and MDFI (Option)
-            // Default select Current Stage to continue "normal procedure"
             container.innerHTML = `
                 <button type="button" onclick="selectStage(this, '${currentStage}')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">${currentStage} (Current)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">MDFI (Minor)</button>
             `;
             document.getElementById('inputStage').value = currentStage;
         } else if (currentStage === 'MDFI') {
-            // Editing MDFI
             container.innerHTML = `
                 <button type="button" onclick="selectStage(this, 'SIR')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">SIR (Standard)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">MDFI (Minor)</button>
@@ -619,10 +650,7 @@
         document.getElementById('formSubmitBtn').innerText = "Submit Report";
         document.getElementById('incidentForm').reset();
         document.getElementById('inputEvidence').value = ""; 
-        
-        // Default to SIR for new reports
         renderStageButtons('SIR');
-
         const form = document.getElementById('incidentForm');
         form.action = "{{ route('incidents.store') }}"; 
         document.getElementById('formMethod').value = "POST";
@@ -640,10 +668,7 @@
         document.getElementById('inputLocation').value = location;
         document.getElementById('inputTypeSelect').value = type;
         document.getElementById('inputDescription').value = description;
-        
-        // Render buttons based on Current Stage
         renderStageButtons(stage);
-
         const form = document.getElementById('incidentForm');
         form.action = "/incidents/" + id; 
         document.getElementById('formMethod').value = "PUT";
@@ -651,13 +676,5 @@
     }
 
     function closeFormModal() { document.getElementById('formModal').classList.add('hidden'); }
-
-    function searchTable() {
-        let input = document.getElementById('searchInput').value.toLowerCase();
-        let rows = document.querySelectorAll('#incidentTableBody tr');
-        rows.forEach(row => {
-            row.style.display = row.innerText.toLowerCase().includes(input) ? '' : 'none';
-        });
-    }
 </script>
 </x-layout>
