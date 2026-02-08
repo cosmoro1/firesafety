@@ -78,7 +78,7 @@
                         <th class="px-6 py-4">ID</th>
                         <th class="px-6 py-4">Stage</th>
                         <th class="px-6 py-4">Title</th>
-                        <th class="px-6 py-4">Barangay</th>
+                        <th class="px-6 py-4">Location</th>
                         <th class="px-6 py-4">Date</th>
                         <th class="px-6 py-4">Officer</th>
                         <th class="px-6 py-4">Status</th>
@@ -104,7 +104,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 font-medium text-gray-900">{{ Str::limit($incident->title, 30) }}</td>
-                            <td class="px-6 py-4 text-gray-600">{{ $incident->location }}</td>
+                            <td class="px-6 py-4 text-gray-600">{{ Str::limit($incident->location, 30) }}</td>
                             <td class="px-6 py-4 text-gray-600">{{ \Carbon\Carbon::parse($incident->incident_date)->format('M d, Y') }}</td>
                             <td class="px-6 py-4 text-gray-600">{{ $incident->reported_by }}</td>
                             <td class="px-6 py-4">
@@ -149,7 +149,7 @@
                                         '{{ addslashes($incident->title) }}', 
                                         '{{ date('Y-m-d', strtotime($incident->incident_date)) }}', 
                                         '{{ date('H:i', strtotime($incident->incident_date)) }}', 
-                                        '{{ $incident->location }}', 
+                                        '{{ addslashes($incident->location) }}', 
                                         '{{ $incident->type }}', 
                                         '{{ addslashes(str_replace(array("\r", "\n"), " ", $incident->description)) }}',
                                         '{{ $incident->stage }}'
@@ -214,16 +214,13 @@
                 </div>
 
                 @if(auth()->user()->role === 'admin')
-                {{-- FIX: Using Show/Hide Logic instead of overwriting HTML --}}
                 
-                {{-- 1. Locked Badge (Hidden by default) --}}
                 <div id="finalizedBadge" class="hidden w-full text-center py-4 border-t border-gray-100 mt-4">
                     <span class="px-6 py-2 bg-green-100 text-green-700 font-bold rounded-full text-xs uppercase tracking-wide border border-green-200">
                         <i class="fa-solid fa-lock mr-2"></i> Case Finalized & Archived
                     </span>
                 </div>
 
-                {{-- 2. Action Buttons (Visible by default) --}}
                 <div id="adminActions" class="flex justify-end gap-3 pt-4 border-t border-gray-100">
                     <button onclick="showReturnForm()" class="px-4 py-2 text-red-600 font-bold text-sm border border-red-200 rounded-lg hover:bg-red-50 transition">
                         <i class="fa-solid fa-rotate-left mr-2"></i> Return to Officer
@@ -254,8 +251,7 @@
         </div>
     </dialog>
 
-    {{-- MODAL: VIEW DETAILS, IMPORT, FORM (Same as before) --}}
-    {{-- ... Skipping repeated HTML for brevity, using JS to handle ... --}}
+    {{-- MODAL: VIEW DETAILS --}}
     <div id="viewReportModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeViewModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -300,6 +296,7 @@
         </div>
     </div>
 
+    {{-- MODAL: IMPORT --}}
     @if(auth()->user()->role !== 'clerk')
     <div id="importModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeImportModal()"></div>
@@ -310,7 +307,7 @@
                         @csrf
                         <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                             <h3 class="text-lg font-semibold leading-6 text-gray-900 mb-4">Import Historical Incidents</h3>
-                            <div class="mb-4 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-700"><strong>Format:</strong> Type, Title, Date (YYYY-MM-DD), Time (HH:MM), Location, Description, Stage (optional), Status (optional)</div>
+                            <div class="mb-4 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-xs text-yellow-700"><strong>Format:</strong> Type, Title, Date, Time, Location, Description, Stage, Status</div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Upload CSV File</label>
                             <input type="file" name="file" accept=".csv" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"/>
                         </div>
@@ -325,6 +322,7 @@
     </div>
     @endif
 
+    {{-- MODAL: NEW / EDIT REPORT (UPDATED WITH ADDRESS) --}}
     <div id="formModal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeFormModal()"></div>
         <div class="fixed inset-0 z-10 overflow-y-auto">
@@ -338,6 +336,8 @@
                             <button type="button" onclick="closeFormModal()" class="text-gray-400 hover:text-gray-500"><i class="fa-solid fa-xmark text-xl"></i></button>
                         </div>
                         <div class="px-6 py-6 max-h-[70vh] overflow-y-auto">
+                            
+                            {{-- Type --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Nature of Fire <span class="text-red-500">*</span></label>
                                 <select name="type" id="inputTypeSelect" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500 bg-white" required>
@@ -346,85 +346,103 @@
                                     <option value="Vehicular">Vehicular</option>
                                 </select>
                             </div>
+
+                            {{-- Stage --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Investigation Stage</label>
                                 <input type="hidden" name="stage" id="inputStage" value="SIR"> 
                                 <div class="grid grid-cols-2 gap-3" id="stageButtonsGrid"></div>
                                 <p class="text-[10px] text-gray-500 mt-2 italic">Note: PIR and FIR stages are managed by Admin based on investigation progress.</p>
                             </div>
+
+                            {{-- Title --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Incident Title <span class="text-red-500">*</span></label>
                                 <input type="text" name="title" id="inputTitle" placeholder="e.g., Residential Fire" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500" required>
                             </div>
+
+                            {{-- Date & Time --}}
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Date <span class="text-red-500">*</span></label><input type="date" name="date" id="inputDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required></div>
                                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Time <span class="text-red-500">*</span></label><input type="time" name="time" id="inputTime" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required></div>
                             </div>
-                            <div class="mb-5">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Location (Barangay) <span class="text-red-500">*</span></label>
-                                <select name="location" id="inputLocation" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" required>
-                                    <option value="">Select Barangay</option>
-                                    <option value="Bagong Kalsada">Bagong Kalsada</option>
-                                    <option value="Bañadero">Bañadero</option>
-                                    <option value="Banlic">Banlic</option>
-                                    <option value="Barandal">Barandal</option>
-                                    <option value="Barangay 1 (Poblacion)">Barangay 1 (Poblacion)</option>
-                                    <option value="Barangay 2 (Poblacion)">Barangay 2 (Poblacion)</option>
-                                    <option value="Barangay 3 (Poblacion)">Barangay 3 (Poblacion)</option>
-                                    <option value="Barangay 4 (Poblacion)">Barangay 4 (Poblacion)</option>
-                                    <option value="Barangay 5 (Poblacion)">Barangay 5 (Poblacion)</option>
-                                    <option value="Barangay 6 (Poblacion)">Barangay 6 (Poblacion)</option>
-                                    <option value="Barangay 7 (Poblacion)">Barangay 7 (Poblacion)</option>
-                                    <option value="Batino">Batino</option>
-                                    <option value="Bubuyan">Bubuyan</option>
-                                    <option value="Bucal">Bucal</option>
-                                    <option value="Bunggo">Bunggo</option>
-                                    <option value="Burol">Burol</option>
-                                    <option value="Camaligan">Camaligan</option>
-                                    <option value="Canlubang">Canlubang</option>
-                                    <option value="Halang">Halang</option>
-                                    <option value="Hornalan">Hornalan</option>
-                                    <option value="Kay-Anlog">Kay-Anlog</option>
-                                    <option value="La Mesa">La Mesa</option>
-                                    <option value="Laguerta">Laguerta</option>
-                                    <option value="Lawa">Lawa</option>
-                                    <option value="Lecheria">Lecheria</option>
-                                    <option value="Lingga">Lingga</option>
-                                    <option value="Looc">Looc</option>
-                                    <option value="Mabato">Mabato</option>
-                                    <option value="Majada Labas">Majada Labas</option>
-                                    <option value="Makiling">Makiling</option>
-                                    <option value="Mapagong">Mapagong</option>
-                                    <option value="Masili">Masili</option>
-                                    <option value="Maunong">Maunong</option>
-                                    <option value="Mayapa">Mayapa</option>
-                                    <option value="Paciano Rizal">Paciano Rizal</option>
-                                    <option value="Palingon">Palingon</option>
-                                    <option value="Palo-Alto">Palo-Alto</option>
-                                    <option value="Pansol">Pansol</option>
-                                    <option value="Parian">Parian</option>
-                                    <option value="Prinza">Prinza</option>
-                                    <option value="Punta">Punta</option>
-                                    <option value="Puting Lupa">Puting Lupa</option>
-                                    <option value="Real">Real</option>
-                                    <option value="Saimsim">Saimsim</option>
-                                    <option value="Sampiruhan">Sampiruhan</option>
-                                    <option value="San Cristobal">San Cristobal</option>
-                                    <option value="San Jose">San Jose</option>
-                                    <option value="San Juan">San Juan</option>
-                                    <option value="Sirang Lupa">Sirang Lupa</option>
-                                    <option value="Sucol">Sucol</option>
-                                    <option value="Tulo">Tulo</option>
-                                    <option value="Turbina">Turbina</option>
-                                    <option value="Ulango">Ulango</option>
-                                    <option value="Uwisan">Uwisan</option>
-                                </select>
+
+                            {{-- Location: Barangay & Address --}}
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Barangay <span class="text-red-500">*</span></label>
+                                    <select name="barangay" id="inputBarangay" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" required>
+                                        <option value="">Select Barangay</option>
+                                        <option value="Bagong Kalsada">Bagong Kalsada</option>
+                                        <option value="Bañadero">Bañadero</option>
+                                        <option value="Banlic">Banlic</option>
+                                        <option value="Barandal">Barandal</option>
+                                        <option value="Barangay 1 (Poblacion)">Barangay 1 (Poblacion)</option>
+                                        <option value="Barangay 2 (Poblacion)">Barangay 2 (Poblacion)</option>
+                                        <option value="Barangay 3 (Poblacion)">Barangay 3 (Poblacion)</option>
+                                        <option value="Barangay 4 (Poblacion)">Barangay 4 (Poblacion)</option>
+                                        <option value="Barangay 5 (Poblacion)">Barangay 5 (Poblacion)</option>
+                                        <option value="Barangay 6 (Poblacion)">Barangay 6 (Poblacion)</option>
+                                        <option value="Barangay 7 (Poblacion)">Barangay 7 (Poblacion)</option>
+                                        <option value="Batino">Batino</option>
+                                        <option value="Bubuyan">Bubuyan</option>
+                                        <option value="Bucal">Bucal</option>
+                                        <option value="Bunggo">Bunggo</option>
+                                        <option value="Burol">Burol</option>
+                                        <option value="Camaligan">Camaligan</option>
+                                        <option value="Canlubang">Canlubang</option>
+                                        <option value="Halang">Halang</option>
+                                        <option value="Hornalan">Hornalan</option>
+                                        <option value="Kay-Anlog">Kay-Anlog</option>
+                                        <option value="La Mesa">La Mesa</option>
+                                        <option value="Laguerta">Laguerta</option>
+                                        <option value="Lawa">Lawa</option>
+                                        <option value="Lecheria">Lecheria</option>
+                                        <option value="Lingga">Lingga</option>
+                                        <option value="Looc">Looc</option>
+                                        <option value="Mabato">Mabato</option>
+                                        <option value="Majada Labas">Majada Labas</option>
+                                        <option value="Makiling">Makiling</option>
+                                        <option value="Mapagong">Mapagong</option>
+                                        <option value="Masili">Masili</option>
+                                        <option value="Maunong">Maunong</option>
+                                        <option value="Mayapa">Mayapa</option>
+                                        <option value="Paciano Rizal">Paciano Rizal</option>
+                                        <option value="Palingon">Palingon</option>
+                                        <option value="Palo-Alto">Palo-Alto</option>
+                                        <option value="Pansol">Pansol</option>
+                                        <option value="Parian">Parian</option>
+                                        <option value="Prinza">Prinza</option>
+                                        <option value="Punta">Punta</option>
+                                        <option value="Puting Lupa">Puting Lupa</option>
+                                        <option value="Real">Real</option>
+                                        <option value="Saimsim">Saimsim</option>
+                                        <option value="Sampiruhan">Sampiruhan</option>
+                                        <option value="San Cristobal">San Cristobal</option>
+                                        <option value="San Jose">San Jose</option>
+                                        <option value="San Juan">San Juan</option>
+                                        <option value="Sirang Lupa">Sirang Lupa</option>
+                                        <option value="Sucol">Sucol</option>
+                                        <option value="Tulo">Tulo</option>
+                                        <option value="Turbina">Turbina</option>
+                                        <option value="Ulango">Ulango</option>
+                                        <option value="Uwisan">Uwisan</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Exact Address <span class="text-red-500">*</span></label>
+                                    <input type="text" name="street_address" id="inputStreetAddress" placeholder="e.g., Block 5 Lot 2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500" required>
+                                </div>
                             </div>
+
+                            {{-- Evidence --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Attach Photo Evidence (Multiple allowed)</label>
                                 <input type="file" name="evidence[]" multiple id="inputEvidence" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"/>
                                 <p class="text-xs text-gray-400 mt-1">Select multiple files (PNG, JPG). Max 5MB each.</p>
                             </div>
+
+                            {{-- Description --}}
                             <div class="mb-5">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Description <span class="text-red-500">*</span></label>
                                 <textarea name="description" id="inputDescription" rows="4" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-red-500" required></textarea>
@@ -462,20 +480,16 @@
         const returnForm = document.getElementById('returnForm');
         if (returnForm) returnForm.action = "/incidents/" + id + "/status";
 
-        // FIX: Re-initialize the visual elements every time
         const adminActions = document.getElementById('adminActions');
         const finalizedBadge = document.getElementById('finalizedBadge');
         
         if (status === 'Case Closed') {
-            // Hide Buttons, Show Locked Badge
             if(adminActions) adminActions.classList.add('hidden');
             if(finalizedBadge) finalizedBadge.classList.remove('hidden');
         } else {
-            // Show Buttons, Hide Locked Badge
             if(adminActions) adminActions.classList.remove('hidden');
             if(finalizedBadge) finalizedBadge.classList.add('hidden');
             
-            // Set Button Text dynamically
             const nextBtn = document.getElementById('nextStageBtn');
             if(nextBtn) {
                 if(stage === 'SIR') nextBtn.innerHTML = 'Approve SIR & Move to PIR <i class="fa-solid fa-arrow-right ml-2"></i>';
@@ -487,7 +501,6 @@
         const steps = ['SIR', 'PIR', 'FIR'];
         steps.forEach((s) => {
             const el = document.getElementById('step-' + s);
-            // Reset to default grey state first
             el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-white border-gray-300 text-gray-400 transition-all cursor-pointer hover:border-blue-400 hover:scale-105";
             el.innerHTML = steps.indexOf(s) + 1;
             el.onclick = () => showHistoryContent(s);
@@ -496,10 +509,8 @@
         let activeIndex = steps.indexOf(stage);
         if (stage === 'MDFI') activeIndex = 2; 
 
-        // Apply colors and icons based on state
         for (let i = 0; i <= 2; i++) {
             const el = document.getElementById('step-' + steps[i]);
-            
             if (status === 'Case Closed' && steps[i] === 'FIR') {
                 el.className = "w-10 h-10 rounded-full flex items-center justify-center font-bold border-4 bg-green-500 border-green-200 text-white transition-all cursor-pointer";
                 el.innerHTML = '<i class="fa-solid fa-check"></i>';
@@ -573,9 +584,7 @@
         document.getElementById('viewDescription').innerText = description;
         
         const fullReportBtn = document.getElementById('viewFullReportBtn');
-        if (fullReportBtn) {
-            fullReportBtn.href = "/incidents/" + id;
-        }
+        if (fullReportBtn) fullReportBtn.href = "/incidents/" + id;
         
         if(status === 'Returned' && remarks) {
             document.getElementById('viewReturnAlert').classList.remove('hidden');
@@ -623,26 +632,28 @@
     function renderStageButtons(currentStage) {
         const container = document.getElementById('stageButtonsGrid');
         container.innerHTML = ''; 
-
+        
+        let content = '';
         if (currentStage === 'SIR') {
-            container.innerHTML = `
+            content = `
                 <button type="button" onclick="selectStage(this, 'SIR')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">SIR (Standard)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">MDFI (Minor)</button>
             `;
             document.getElementById('inputStage').value = 'SIR';
         } else if (currentStage === 'PIR' || currentStage === 'FIR') {
-            container.innerHTML = `
+            content = `
                 <button type="button" onclick="selectStage(this, '${currentStage}')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">${currentStage} (Current)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">MDFI (Minor)</button>
             `;
             document.getElementById('inputStage').value = currentStage;
         } else if (currentStage === 'MDFI') {
-            container.innerHTML = `
+            content = `
                 <button type="button" onclick="selectStage(this, 'SIR')" class="stage-btn border border-gray-300 text-gray-600 hover:bg-gray-50 font-medium py-2 rounded-lg text-sm w-full transition">SIR (Standard)</button>
                 <button type="button" onclick="selectStage(this, 'MDFI')" class="stage-btn border-2 border-red-500 bg-red-50 text-red-700 font-bold py-2 rounded-lg text-sm w-full transition shadow-sm">MDFI (Minor)</button>
             `;
             document.getElementById('inputStage').value = 'MDFI';
         }
+        container.innerHTML = content;
     }
 
     function openNewReportModal() {
@@ -657,6 +668,7 @@
         document.getElementById('formModal').classList.remove('hidden');
     }
 
+    // UPDATED EDIT MODAL to handle address field split (Simple heuristic)
     function openEditModal(id, title, date, time, location, type, description, stage) {
         document.getElementById('formModalTitle').innerText = "Edit Incident Report";
         document.getElementById('formSubmitBtn').innerText = "Update Report";
@@ -665,10 +677,30 @@
         document.getElementById('inputTitle').value = title;
         document.getElementById('inputDate').value = date;
         document.getElementById('inputTime').value = time;
-        document.getElementById('inputLocation').value = location;
+        
+        // Attempt to split combined location string: "Street Address, Barangay"
+        // If exact split isn't possible, put whole string in address and select nothing for Barangay
+        let barangayVal = "";
+        let addressVal = location;
+        
+        // Check if the location ends with one of our known barangays
+        const barangayOptions = document.getElementById('inputBarangay').options;
+        for (let i = 0; i < barangayOptions.length; i++) {
+            if (location.endsWith(barangayOptions[i].value)) {
+                barangayVal = barangayOptions[i].value;
+                // Remove the barangay + comma from the address part
+                addressVal = location.replace(new RegExp(',?\\s*' + barangayVal + '$'), '');
+                break;
+            }
+        }
+        
+        document.getElementById('inputBarangay').value = barangayVal;
+        document.getElementById('inputStreetAddress').value = addressVal;
+
         document.getElementById('inputTypeSelect').value = type;
         document.getElementById('inputDescription').value = description;
         renderStageButtons(stage);
+        
         const form = document.getElementById('incidentForm');
         form.action = "/incidents/" + id; 
         document.getElementById('formMethod').value = "PUT";

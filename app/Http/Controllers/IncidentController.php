@@ -12,18 +12,34 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class IncidentController extends Controller
 {
-    // 1. VIEW ALL REPORTS
+    // =========================================================
+    // 1. VIEW ALL REPORTS (UPDATED FOR ROLE PRIVACY)
+    // =========================================================
     public function index(Request $request)
     {
+        $user = Auth::user();
         $query = Incident::with('images')->latest();
-        $userRole = Auth::user()->role;
 
-        if ($userRole === 'clerk') {
+        // --- ROLE BASED VISIBILITY LOGIC ---
+        
+        if ($user->role === 'clerk') {
+            // Clerks only see finalized/closed cases
             $query->where('status', 'Case Closed');
-        } elseif ($request->filled('status') && $request->status !== 'all') {
+        } 
+        elseif ($user->role !== 'admin') {
+            // Officers (like John Harold) ONLY see reports THEY created.
+            // Admins bypass this and see everything.
+            $query->where('reported_by', $user->name);
+        }
+        
+        // -----------------------------------
+
+        // Filter by Status (Dropdown)
+        if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
+        // Search Logic
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -34,34 +50,39 @@ class IncidentController extends Controller
             });
         }
 
-        $incidents = $query->paginate(10);
-        $incidents->appends($request->all());
+        $incidents = $query->paginate(10)->appends($request->all());
 
         return view('incidents', compact('incidents'));
     }
 
-    // 2. SAVE NEW REPORT (FIXED)
+    // =========================================================
+    // 2. SAVE NEW REPORT
+    // =========================================================
     public function store(Request $request)
     {
+        // UPDATED VALIDATION: Check for 'barangay' and 'street_address' instead of 'location'
         $request->validate([
             'type' => 'required',
             'title' => 'required',
             'date' => 'required',
             'time' => 'required',
-            'location' => 'required',
+            'barangay' => 'required',       // <--- NEW
+            'street_address' => 'required', // <--- NEW
             'description' => 'required',
             'evidence.*' => 'image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         DB::transaction(function () use ($request) {
-            // FIX: Use $request->stage instead of hardcoding 'SIR'
             $stage = $request->stage ?? 'SIR';
+
+            // COMBINE ADDRESS LOGIC
+            $combinedLocation = $request->street_address . ', ' . $request->barangay;
 
             $incident = Incident::create([
                 'type' => $request->type,
-                'stage' => $stage, // <--- CHANGED THIS
+                'stage' => $stage,
                 'title' => $request->title,
-                'location' => $request->location,
+                'location' => $combinedLocation, // <--- SAVING COMBINED ADDRESS
                 'incident_date' => $request->date . ' ' . $request->time,
                 'description' => $request->description,
                 'status' => 'Pending',
@@ -86,11 +107,11 @@ class IncidentController extends Controller
 
             IncidentHistory::create([
                 'incident_id' => $incident->id,
-                'stage' => $stage, // <--- CHANGED THIS TO MATCH
+                'stage' => $stage,
                 'description' => $incident->description,
                 'title' => $incident->title,
                 'type' => $incident->type,
-                'location' => $incident->location,
+                'location' => $combinedLocation, // <--- SAVING COMBINED ADDRESS IN HISTORY
                 'incident_date' => $incident->incident_date,
                 'reported_by' => $incident->reported_by,
                 'images' => $imagePaths,
@@ -100,106 +121,124 @@ class IncidentController extends Controller
         return back()->with('success', 'Report created successfully!');
     }
 
+    // =========================================================
     // 3. SHOW SINGLE REPORT
+    // =========================================================
     public function show($id)
     {
         $incident = Incident::with(['history', 'images'])->findOrFail($id);
+        
+        // Security Check: Prevent Officers from viewing other officers' reports via URL ID manipulation
+        $user = Auth::user();
+        if ($user->role !== 'admin' && $user->role !== 'clerk' && $incident->reported_by !== $user->name) {
+            abort(403, 'Unauthorized access to this report.');
+        }
+
         return view('incidents.show', compact('incident'));
     }
 
+    // =========================================================
     // 4. WORKFLOW STATUS UPDATES
-    // 4. WORKFLOW STATUS UPDATES
-public function updateStatus(Request $request, $id)
-{
-    $incident = Incident::findOrFail($id);
+    // =========================================================
+    public function updateStatus(Request $request, $id)
+    {
+        $incident = Incident::findOrFail($id);
 
-    // Prevent any changes if the case is already closed
-    if ($incident->status === 'Case Closed') {
-        return back()->with('error', 'This case is already finalized and closed.');
-    }
+        if ($incident->status === 'Case Closed') {
+            return back()->with('error', 'This case is already finalized and closed.');
+        }
 
-    if ($request->action === 'return') {
-        $incident->update([
-            'status' => 'Returned',
-            'admin_remarks' => $request->remarks,
-        ]);
-        return back()->with('error', 'Report returned to officer for revision.');
-    }
-
-    if ($request->action === 'approve') {
-        DB::transaction(function () use ($incident) {
-            // Save Snapshot of CURRENT state before moving forward
-            IncidentHistory::create([
-                'incident_id' => $incident->id,
-                'stage' => $incident->stage,
-                'description' => $incident->description,
-                'title' => $incident->title,
-                'type' => $incident->type,
-                'location' => $incident->location,
-                'incident_date' => $incident->incident_date,
-                'reported_by' => $incident->reported_by,
-                'images' => $incident->images->pluck('image_path')->toArray(),
-            ]);
-
-            $nextStage = $incident->stage;
-            $status = 'Pending';
-
-            // Logic: SIR -> PIR -> FIR -> Closed
-            if ($incident->stage === 'SIR') {
-                $nextStage = 'PIR';
-            } elseif ($incident->stage === 'PIR') {
-                $nextStage = 'FIR';
-            } elseif ($incident->stage === 'FIR') {
-                $status = 'Case Closed'; // Finalize here
-            } elseif ($incident->stage === 'MDFI') {
-                $status = 'Case Closed'; // MDFI also closes immediately
-            }
-
+        if ($request->action === 'return') {
             $incident->update([
-                'stage' => $nextStage,
-                'status' => $status,
-                'admin_remarks' => null,
+                'status' => 'Returned',
+                'admin_remarks' => $request->remarks,
             ]);
-        });
+            return back()->with('error', 'Report returned to officer for revision.');
+        }
 
-        return back()->with('success', $incident->status === 'Case Closed' 
-            ? 'Report finalized and Case Closed.' 
-            : 'Stage approved. Moved to ' . $incident->stage . '.');
+        if ($request->action === 'approve') {
+            DB::transaction(function () use ($incident) {
+                // Save Snapshot
+                IncidentHistory::create([
+                    'incident_id' => $incident->id,
+                    'stage' => $incident->stage,
+                    'description' => $incident->description,
+                    'title' => $incident->title,
+                    'type' => $incident->type,
+                    'location' => $incident->location,
+                    'incident_date' => $incident->incident_date,
+                    'reported_by' => $incident->reported_by,
+                    'images' => $incident->images->pluck('image_path')->toArray(),
+                ]);
+
+                $nextStage = $incident->stage;
+                $status = 'Pending';
+
+                if ($incident->stage === 'SIR') {
+                    $nextStage = 'PIR';
+                } elseif ($incident->stage === 'PIR') {
+                    $nextStage = 'FIR';
+                } elseif ($incident->stage === 'FIR') {
+                    $status = 'Case Closed';
+                } elseif ($incident->stage === 'MDFI') {
+                    $status = 'Case Closed';
+                }
+
+                $incident->update([
+                    'stage' => $nextStage,
+                    'status' => $status,
+                    'admin_remarks' => null,
+                ]);
+            });
+
+            return back()->with('success', $incident->status === 'Case Closed' 
+                ? 'Report finalized and Case Closed.' 
+                : 'Stage approved. Moved to ' . $incident->stage . '.');
+        }
     }
-}
 
+    // =========================================================
     // 5. UPDATE EXISTING REPORT
+    // =========================================================
     public function update(Request $request, $id)
     {
+        // UPDATED VALIDATION FOR UPDATE: Check for 'barangay' and 'street_address'
         $request->validate([
             'type' => 'required',
             'title' => 'required',
             'date' => 'required',
             'time' => 'required',
-            'location' => 'required',
+            'barangay' => 'required',       // <--- NEW
+            'street_address' => 'required', // <--- NEW
             'description' => 'required',
             'evidence.*' => 'image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         $incident = Incident::findOrFail($id);
 
+        // Security Check
+        if (Auth::user()->role !== 'admin' && $incident->reported_by !== Auth::user()->name) {
+             abort(403, 'Unauthorized action.');
+        }
+
         DB::transaction(function () use ($request, $incident) {
+            
+            // COMBINE ADDRESS LOGIC
+            $combinedLocation = $request->street_address . ', ' . $request->barangay;
+
             $updateData = [
                 'type' => $request->type,
                 'title' => $request->title,
                 'incident_date' => $request->date . ' ' . $request->time,
-                'location' => $request->location,
+                'location' => $combinedLocation, // <--- UPDATING COMBINED ADDRESS
                 'description' => $request->description,
                 'admin_remarks' => null,
             ];
 
-            // If updating, respect the current stage logic
-            // If it was 'Returned', set back to 'Pending' for re-approval
             if ($incident->status === 'Returned') {
                 $updateData['status'] = 'Pending';
             }
             
-            // Allow stage change only if it was SIR or MDFI (Initial stages)
             if ($request->has('stage') && in_array($incident->stage, ['SIR', 'MDFI'])) {
                  $updateData['stage'] = $request->stage;
             }
@@ -220,29 +259,30 @@ public function updateStatus(Request $request, $id)
         return back()->with('success', 'Report updated and resubmitted.');
     }
 
-   // 6. IMPORT CSV (Fixed: Matches Manual Entry Defaults)
-   public function import(Request $request)
+    // =========================================================
+    // 6. IMPORT CSV (Restricted Types & Fixed Timeout)
+    // =========================================================
+    public function import(Request $request)
     {
+        // Fix for large files (20k rows)
+        set_time_limit(0); 
+
         $request->validate(['file' => 'required|mimes:csv,txt']);
 
         $rows = array_map('str_getcsv', file($request->file('file')->getRealPath()));
         array_shift($rows); 
 
-        // Define the only allowed incident types
         $allowedTypes = ['Structural', 'Non-Structural', 'Vehicular'];
 
         DB::transaction(function () use ($rows, $allowedTypes) {
             foreach ($rows as $row) {
-                // Ensure row has data
                 if (count($row) < 6) continue;
 
-                $type = trim($row[0]); // Clean up whitespace
+                $type = trim($row[0]); 
 
-                // --- FILTER LOGIC: Skip if type is not allowed ---
                 if (!in_array($type, $allowedTypes)) {
                     continue; 
                 }
-                // -------------------------------------------------
 
                 $title       = $row[1];
                 $date        = $row[2];
@@ -252,7 +292,6 @@ public function updateStatus(Request $request, $id)
                 $stage       = $row[6] ?? 'SIR';
                 $status      = $row[7] ?? 'Pending';
 
-                // 1. Create the Incident
                 $incident = Incident::create([
                     'type'          => $type,
                     'title'         => $title,
@@ -265,9 +304,8 @@ public function updateStatus(Request $request, $id)
                     'alarm_level'   => 'Low',
                 ]);
 
-                // 2. BACKFILL HISTORY LOGS
+                // Backfill History
                 $workflow = ['SIR', 'PIR', 'FIR'];
-                
                 foreach ($workflow as $step) {
                     IncidentHistory::create([
                         'incident_id'   => $incident->id,
@@ -281,9 +319,7 @@ public function updateStatus(Request $request, $id)
                         'images'        => [],
                     ]);
 
-                    if ($step === $stage) {
-                        break;
-                    }
+                    if ($step === $stage) break;
                 }
 
                 if ($stage === 'MDFI' && !in_array('MDFI', $workflow)) {
@@ -305,13 +341,16 @@ public function updateStatus(Request $request, $id)
         return back()->with('success', 'Import completed! Only Structural, Non-Structural, and Vehicular incidents were saved.');
     }
 
+    // =========================================================
     // 7. DOWNLOAD PDF
+    // =========================================================
     public function download(Request $request, $id)
     {
         $incident = Incident::findOrFail($id);
         $userRole = Auth::user()->role;
 
-        if (!in_array($userRole, ['admin', 'clerk'])) {
+        // Allow Admins, Clerks, and the Officer who owns the report
+        if (!in_array($userRole, ['admin', 'clerk']) && $incident->reported_by !== Auth::user()->name) {
             abort(403, 'Unauthorized access.');
         }
 
